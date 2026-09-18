@@ -26,6 +26,24 @@ L'API répond sur `http://localhost:8000/api/…`, la documentation interactive 
 `http://localhost:8000/api/docs`. Le front (port 5173) renvoie déjà `/api` ici
 via le proxy de Vite : pas de CORS à régler en développement.
 
+## Au démarrage
+
+Avant la première requête, l'API vérifie deux choses et les répare si besoin
+(`app/bootstrap.py`, appelé par le `lifespan`) :
+
+- **aucun compte `is_staff`** → elle crée `admin` / `admin`. Le mot de passe est en dur :
+  c'est un confort de développement, à ne pas laisser sortir d'ici.
+- **aucun billet** → elle en crée 30, dix par rôle, non assignés (`DBZ-0001` à `DBZ-0030`).
+
+Les deux tests sont tout ou rien : ils regardent si la table contient *quelque chose*,
+donc ils ne discutent jamais avec des données créées ensuite. Un deuxième démarrage ne
+dit rien et ne touche à rien. Le tout sous un verrou consultatif Postgres, pour que
+plusieurs workers lancés en même temps ne créent pas les mêmes lignes deux fois.
+
+Un cas est traité à part : si le nom `admin` est déjà pris par un visiteur alors qu'il
+n'y a pas de staff, l'API **ne le promeut pas** — cela donnerait la console au premier
+qui a réservé le nom. Elle écrit une erreur dans les logs et laisse la console fermée.
+
 ## Ce qu'il y a dans quel fichier
 
 ```
@@ -36,6 +54,7 @@ app/
 ├── dependencies.py qui appelle : `CurrentUser` (connecté) et `StaffUser` (console).
 ├── errors.py      `ApiError("…")` → 400 + detail. La seule erreur du projet.
 ├── main.py        l'app, montée sous /api, et la traduction 422 → 400.
+├── bootstrap.py   ce que le démarrage garantit : un staff, et des billets.
 ├── models/        les cinq tables. Rien d'autre ne décrit le schéma.
 ├── schemas/       les formes d'entrée et de sortie de `../API.md`.
 └── routers/       un module par domaine, comme `frontend/src/api/`.
