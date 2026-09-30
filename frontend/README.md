@@ -13,7 +13,7 @@ affichent « Le serveur ne répond pas. ».
 Le back d'abord, depuis la racine du projet (voir `../backend/README.md`) :
 
 ```bash
-docker compose up -d
+docker compose up -d db
 cd backend && uv run alembic upgrade head && uv run fastapi dev app/main.py
 ```
 

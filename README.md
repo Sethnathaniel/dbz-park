@@ -1,5 +1,30 @@
 # Dragon Ball Park
 
+## Lancer l'application
+
+```bash
+cp .env.example .env        # puis changer POSTGRES_PASSWORD et JWT_SECRET
+docker compose up -d --build
+```
+
+L'app répond sur **http://localhost:8080** (`FRONT_PORT` dans `.env`). Trois
+conteneurs : `db` (Postgres), `backend` (FastAPI, qui applique les migrations à
+son démarrage), `frontend` (nginx, qui sert le front et fait suivre `/api` au
+back — une seule origine pour le navigateur, donc pas de CORS).
+
+Au premier démarrage le back crée un compte `admin` / `admin` et 30 billets
+libres. Aucune route ne crée d'attraction : il faut, pour l'instant, les insérer
+dans la base.
+
+Pour développer, on ne lance que la base (`docker compose up -d db`) et on suit
+`backend/README.md` et `frontend/README.md`. Le contrat entre les deux est dans
+[`API.md`](API.md).
+
+---
+
+> La suite décrit l'ancienne version Django du projet, remplacée par `backend/`
+> et `frontend/`.
+
 Application Django de billetterie pour un parc d'attractions Dragon Ball Z.
 
 Structure de code reprise de `bonjour_plant` : un projet `core/` (settings,

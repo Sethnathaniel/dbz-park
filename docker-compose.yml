@@ -1,6 +1,4 @@
-# Compose reads the .env next to this file, the same one the back reads.
-# For now it only runs the database; the back and the front are started by hand.
-
+# Reads the .env next to this file, the same one the back reads in development.
 name: dbz-park
 
 services:
@@ -13,16 +11,42 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
     ports:
-      # Published on the host port the app expects, so POSTGRES_HOST=localhost works.
+      # Published for development: the back run by hand reaches it on localhost.
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      # `alembic upgrade head` right after `up` would otherwise race the first boot.
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Inside the compose network the database is the `db` service, on its own port.
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONT_PORT:-8080}:80"
+    # nginx resolves `backend` when it starts: it must already be up.
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:
