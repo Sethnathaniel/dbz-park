@@ -18,6 +18,16 @@ export function buyTicket(role) {
   return USE_MOCK ? mock.buyTicket({ role }) : api.post(endpoints.tickets, { role })
 }
 
+/**
+ * Temporaire : le staff émet un billet que personne ne détient encore, et en
+ * remet le numéro au visiteur. Remplace l'outil du guichet, qui n'existe pas encore.
+ */
+export function createUnassignedTicket(role) {
+  return USE_MOCK
+    ? mock.createUnassignedTicket({ role })
+    : api.post(endpoints.unassignedTickets, { role })
+}
+
 /** Rattache au compte un billet acheté ailleurs (guichet, site), par son numéro. */
 export function assignTicket(numero) {
   return USE_MOCK ? mock.assignTicket({ numero }) : api.post(endpoints.assignTicket, { numero })

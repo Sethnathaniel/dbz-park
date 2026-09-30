@@ -171,6 +171,23 @@ caller and immediately usable.
 | `200 OK` | the ticket exists and can join a queue right away. |
 | `400 Bad Request` | not logged in (a ticket has to belong to somebody), or `role` missing or empty — no value is rejected for being unknown. |
 
+### `POST /tickets/unassigned/` — temporary
+**Staff only.** Issues a ticket that nobody holds yet, the way the ticket office
+would: the staff member hands its `numero` to a visitor, who claims it with
+`POST /tickets/assign/`. It stands in for the ticket office's own tool, and goes
+away once that tool exists.
+```jsonc
+// request
+{ "role": "Sayan" }   // stored as "sayan", exactly like POST /tickets/
+// response: the ticket, same shape as POST /tickets/, held by nobody
+{ "id": 33, "numero": "DBZ-0033", "role": "sayan", "created_at": "2026-09-30T11:02:00" }
+```
+
+| Code | When |
+| ---- | ---- |
+| `200 OK` | the ticket exists, free, ready to be claimed with its `numero`. |
+| `400 Bad Request` | not logged in, or logged in without `is_staff` (same `detail` for both), or `role` missing or empty. |
+
 ### `POST /tickets/assign/`
 Attaches a ticket bought elsewhere (counter, website) to the account, from its
 number alone.

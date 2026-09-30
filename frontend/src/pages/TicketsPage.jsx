@@ -7,7 +7,13 @@
 import { useCallback, useState } from 'react'
 
 import { useAuth } from '../auth/AuthContext'
-import { assignTicket, buyTicket, listAllTickets, listTickets } from '../api/tickets'
+import {
+  assignTicket,
+  buyTicket,
+  createUnassignedTicket,
+  listAllTickets,
+  listTickets,
+} from '../api/tickets'
 import Alert from '../components/Alert'
 import EmptyState from '../components/EmptyState'
 import RoleBadge from '../components/RoleBadge'
@@ -166,42 +172,128 @@ export default function TicketsPage() {
         </div>
       </div>
 
-      {user.is_staff && <AllTickets />}
+      {user.is_staff && <StaffSection />}
     </>
   )
 }
 
-/** Tous les billets du parc et qui les détient — ce que le guichet consulte. */
-function AllTickets() {
-  const { data: tickets, loading, error } = useApi(listAllTickets)
+/**
+ * La section du staff : émettre un billet libre, et voir tous ceux du parc.
+ *
+ * Les deux partagent le même chargement, pour qu'un billet tout juste créé
+ * apparaisse aussitôt dans la liste, « non attribué ».
+ */
+function StaffSection() {
+  const { data: tickets, loading, error, reload } = useApi(listAllTickets)
+
+  const [role, setRole] = useState('normal')
+  const [busy, setBusy] = useState(false)
+  const [created, setCreated] = useState(null)
+  const [createError, setCreateError] = useState(null)
+
+  async function handleCreate(event) {
+    event.preventDefault()
+    setBusy(true)
+    setCreateError(null)
+    try {
+      setCreated(await createUnassignedTicket(role))
+      await reload()
+    } catch (err) {
+      setCreated(null)
+      setCreateError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
-    <div className="park-card mt-4">
-      <h2>
-        <i className="bi bi-archive" />
-        Tous les billets
-        <span className="badge rounded-pill text-bg-light ms-auto">{tickets?.length ?? 0}</span>
-      </h2>
+    <>
+      <div className="park-card mt-4">
+        <h2>
+          <i className="bi bi-plus-circle" />
+          Créer un nouveau ticket
+          <span className="badge rounded-pill text-bg-light ms-auto">staff</span>
+        </h2>
 
-      {loading && <EmptyState icon="bi-hourglass-split">Chargement…</EmptyState>}
-      {error && <Alert message={error} type="error" />}
-
-      {tickets?.map((ticket) => (
-        <div key={ticket.id} className={`ticket-card ticket-${ticket.role}`}>
-          <div>
-            <span className="ticket-numero">#{ticket.numero}</span>
-            <span className="ticket-date">{ticket.user?.username ?? 'non attribué'}</span>
+        <form onSubmit={handleCreate} className="row g-3 align-items-end" noValidate>
+          <div className="col-sm-6">
+            <label className="form-label" htmlFor="staff-role">
+              Rôle du ticket
+            </label>
+            <select
+              id="staff-role"
+              className="form-select"
+              value={role}
+              onChange={(event) => setRole(event.target.value)}
+            >
+              {ROLES.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
-
-          <div className="ticket-side">
-            <RoleBadge ticket={ticket} />
+          <div className="col-sm-6">
+            <button type="submit" className="btn btn-park w-100" disabled={busy}>
+              <i className="bi bi-plus-lg" />
+              {busy ? 'Création…' : 'Créer un nouveau ticket'}
+            </button>
           </div>
-        </div>
-      ))}
+        </form>
 
-      {tickets?.length === 0 && (
-        <EmptyState icon="bi-ticket-detailed">Aucun billet dans le parc.</EmptyState>
-      )}
-    </div>
+        {createError && (
+          <div className="mt-3">
+            <Alert message={createError} type="error" />
+          </div>
+        )}
+
+        {/* Le numéro, en grand : c'est lui que le staff remet au visiteur. */}
+        {created && (
+          <div className={`ticket-card ticket-${created.role} mt-3 mb-0`}>
+            <div>
+              <span className="ticket-numero">#{created.numero}</span>
+              <span className="ticket-date">
+                À remettre au visiteur : il le rattache depuis « Assigner un billet ».
+              </span>
+            </div>
+            <div className="ticket-side">
+              <RoleBadge ticket={created} />
+            </div>
+          </div>
+        )}
+
+        <p className="form-text mt-3 mb-0">
+          Temporaire : le billet est créé sans détenteur, comme au guichet.
+        </p>
+      </div>
+
+      <div className="park-card mt-4">
+        <h2>
+          <i className="bi bi-archive" />
+          Tous les billets
+          <span className="badge rounded-pill text-bg-light ms-auto">{tickets?.length ?? 0}</span>
+        </h2>
+
+        {loading && !tickets && <EmptyState icon="bi-hourglass-split">Chargement…</EmptyState>}
+        {error && <Alert message={error} type="error" />}
+
+        {tickets?.map((ticket) => (
+          <div key={ticket.id} className={`ticket-card ticket-${ticket.role}`}>
+            <div>
+              <span className="ticket-numero">#{ticket.numero}</span>
+              <span className="ticket-date">{ticket.user?.username ?? 'non attribué'}</span>
+            </div>
+
+            <div className="ticket-side">
+              <RoleBadge ticket={ticket} />
+            </div>
+          </div>
+        ))}
+
+        {tickets?.length === 0 && (
+          <EmptyState icon="bi-ticket-detailed">Aucun billet dans le parc.</EmptyState>
+        )}
+      </div>
+    </>
   )
 }

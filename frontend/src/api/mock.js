@@ -204,6 +204,23 @@ export const mock = {
     return publicTicket(ticket)
   },
 
+  /** Temporaire, comme la route : un billet libre, émis par le staff. */
+  async createUnassignedTicket({ role }) {
+    await wait()
+    const user = requireUser()
+    if (!user.is_staff) fail('Connectez-vous pour continuer.')
+    if (!ROLE_KEYS.includes(role)) fail("Ce type de billet n'existe pas.")
+    const ticket = {
+      id: nextId(),
+      user_id: null,
+      numero: nextNumero(),
+      role,
+      created_at: new Date().toISOString(),
+    }
+    db.tickets.push(ticket)
+    return publicTicket(ticket)
+  },
+
   async assignTicket({ numero }) {
     await wait()
     requireUser()

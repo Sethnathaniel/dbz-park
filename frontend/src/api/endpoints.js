@@ -16,6 +16,7 @@ export const endpoints = {
   // ── Billets ─────────────────────────────────────────────────────────────
   tickets: '/tickets/', //      GET   tous les billets (staff)  ·  POST  en acheter un
   userTickets: (userId) => `/user/${userId}/tickets/`, //   GET   les billets d'un visiteur
+  unassignedTickets: '/tickets/unassigned/', //           POST  temporaire : le staff émet un billet libre
   assignTicket: '/tickets/assign/', //                      POST  en rattacher un
 
   // ── Attractions & files ─────────────────────────────────────────────────
