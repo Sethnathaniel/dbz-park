@@ -1,7 +1,9 @@
 """Tickets: one staff-wide listing, one per-visitor listing, and the two writes."""
 
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import Ticket
 from tests.seed import GOKU
 
 
@@ -104,3 +106,37 @@ class TestAssignTicket:
         response = await client.post("/tickets/assign/", json={}, headers=visitor)
         assert response.status_code == 400
         assert "numero" in response.json()["detail"]
+
+
+class TestCreateUnassignedTicket:
+    """`POST /tickets/unassigned/` — temporary: staff issues a ticket nobody holds yet."""
+
+    async def test_staff_issues_a_free_ticket_that_a_visitor_can_then_claim(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        staff: dict[str, str],
+        other_visitor: dict[str, str],
+    ):
+        response = await client.post("/tickets/unassigned/", json={"role": " Sayan "}, headers=staff)
+        assert response.status_code == 200
+        issued = response.json()
+        assert issued["role"] == "sayan"
+
+        ticket = await session.get(Ticket, issued["id"])
+        assert ticket is not None and ticket.user_id is None
+
+        # The number handed over is the whole point: it must work at the assign form.
+        claimed = await client.post(
+            "/tickets/assign/", json={"numero": issued["numero"]}, headers=other_visitor
+        )
+        assert claimed.status_code == 200
+
+    async def test_a_visitor_is_refused(self, client: AsyncClient, visitor: dict[str, str]):
+        response = await client.post("/tickets/unassigned/", json={"role": "sayan"}, headers=visitor)
+        assert response.status_code == 400
+
+    async def test_refuses_a_body_without_a_role(self, client: AsyncClient, staff: dict[str, str]):
+        response = await client.post("/tickets/unassigned/", json={}, headers=staff)
+        assert response.status_code == 400
+        assert "role" in response.json()["detail"]

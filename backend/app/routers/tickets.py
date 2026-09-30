@@ -10,6 +10,7 @@ from datetime import datetime
 
 from fastapi import APIRouter
 from sqlalchemy import select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db import SessionDep
@@ -49,22 +50,38 @@ async def list_user_tickets(user_id: int, user: CurrentUser, session: SessionDep
     raise ApiError(UNKNOWN_USER)
 
 
-@router.post("/", response_model=TicketOut)
-async def create_ticket(data: TicketCreateIn, user: CurrentUser, session: SessionDep) -> Ticket:
-    """Buys a ticket: the row is created, attached to the caller, usable right away. """
+async def issue_ticket(session: AsyncSession, role: str, user_id: int | None) -> Ticket:
+    """Creates a ticket and commits it. The role is stored as sent, trimmed and lowercased."""
     # Taking the id from the sequence first keeps `numero` unique without a second write.
     number = await session.scalar(text("SELECT nextval(pg_get_serial_sequence('ticket', 'id'))"))
     ticket = Ticket(
         id=number,
-        user_id=user.id,
+        user_id=user_id,
         numero=f"DBZ-{number:04d}",
-        role=data.role.strip().lower(),
+        role=role.strip().lower(),
         created_at=datetime.now(),
     )
     session.add(ticket)
     await session.commit()
     await session.refresh(ticket)
     return ticket
+
+
+@router.post("/", response_model=TicketOut)
+async def create_ticket(data: TicketCreateIn, user: CurrentUser, session: SessionDep) -> Ticket:
+    """Buys a ticket: the row is created, attached to the caller, usable right away."""
+    return await issue_ticket(session, data.role, user_id=user.id)
+
+
+@router.post("/unassigned/", response_model=TicketOut, tags=["temporary"])
+async def create_unassigned_ticket(
+    data: TicketCreateIn, staff: StaffUser, session: SessionDep
+) -> Ticket:
+    """TEMPORARY — staff issues a ticket nobody holds yet, to hand its number to a visitor.
+
+    Stands in for the ticket office's own tool: remove it once that tool exists.
+    """
+    return await issue_ticket(session, data.role, user_id=None)
 
 
 @router.post("/assign/", response_model=TicketOut)
