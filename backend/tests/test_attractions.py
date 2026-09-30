@@ -49,6 +49,8 @@ class TestJoinQueue:
         entry = await session.scalar(select(QueueEntry).where(QueueEntry.attraction_id == KARIN_TOWER))
         # goku's three other tickets are all engaged: only DBZ-0007 was left.
         assert entry is not None and entry.ticket_id == TICKET_GOKU_UNUSED
+        # Once called, the visitor will have 30 seconds to show up.
+        assert entry.max_seconds_allowing_ready == 30
 
     async def test_refuses_a_second_place_on_the_same_attraction(
         self, client: AsyncClient, visitor: dict[str, str]

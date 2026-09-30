@@ -41,8 +41,8 @@ class QueueEntry(Base):
     # Grace period in seconds: past it, the turn was missed and the place goes to another.
     max_seconds_allowing_ready: Mapped[int] = mapped_column(
         Integer,
-        default=300,
-        server_default=text("300"),
+        default=30,
+        server_default=text("30"),
         comment="grace period in seconds before the ready state expires",
     )
 

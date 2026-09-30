@@ -46,6 +46,37 @@ donc elle ne discute jamais avec des billets créés ensuite. Le tout sous un ve
 consultatif Postgres, pour que plusieurs workers lancés en même temps ne créent pas les
 mêmes lignes deux fois.
 
+## Le worker
+
+Appeler un visiteur n'est pas une route : c'est un worker **Celery**, hors du cycle
+HTTP. Celery beat déclenche la tâche toutes les `CALLING_INTERVAL_SECONDS` (5 s), le
+worker l'exécute (`app/worker.py`), et Redis sert de broker entre les deux. La règle
+elle-même est dans `app/calling.py`, testée à part (`tests/test_calling.py`) :
+
+- d'abord, les appelés qui ont dépassé `max_seconds_allowing_ready` sont **retirés de la
+  file** (le « no-show » du SPEC) : leur billet redevient libre ;
+- ensuite, places libres = `max_people` − `people_inside` − appelés restants, et autant de
+  places en attente passent `ready` : Super Sayan d'abord, puis Saiyan, puis humains
+  (`normal`), et à tarif égal le premier arrivé. Cet ordre vit dans `app/priority.py`, et
+  sert aussi à la position affichée et au billet choisi pour entrer en file.
+
+Les deux dans la même transaction : une place libérée par un absent part au suivant dans
+le même passage. « Trop tard » n'a qu'une définition, `QueueEntry.ready_expired()`,
+partagée avec l'API.
+
+Le tout sous un verrou consultatif Postgres, pour que deux workers ne puissent pas
+appeler deux fois les mêmes visiteurs. Il tourne dans son propre conteneur :
+
+```bash
+docker compose up -d --build worker     # démarre aussi redis, db et backend
+docker compose logs -f worker           # « dropped 1 expired call(s), called 2 visitor(s) »
+```
+
+**Temporaire** : le même worker fait tourner une seconde tâche, `app/temporary_exits.py`,
+qui fait sortir tout visiteur entré depuis 30 s ou plus et baisse `people_inside` d'autant,
+comme s'il avait fini son tour. Elle remplace la route de sortie qui n'existe pas encore.
+Pour la retirer : supprimer le fichier, et ses deux lignes dans `app/worker.py`.
+
 ## Ce qu'il y a dans quel fichier
 
 ```
@@ -58,6 +89,10 @@ app/
 ├── main.py        l'app, montée sous /api, et la traduction 422 → 400.
 ├── bootstrap.py   ce que le démarrage garantit : un staff, et des billets.
 ├── admission.py   faire entrer quelqu'un : place libre et compteur, en une requête.
+├── calling.py     appeler les visiteurs suivants quand des places se libèrent.
+├── worker.py      l'app Celery qui fait tourner calling.py toutes les 5 s.
+├── priority.py    l'ordre des tarifs : qui est appelé en premier.
+├── temporary_exits.py  temporaire : fait sortir les visiteurs après 30 s.
 ├── models/        les cinq tables. Rien d'autre ne décrit le schéma.
 ├── schemas/       les formes d'entrée et de sortie de `../API.md`.
 └── routers/       un module par domaine, comme `frontend/src/api/`.

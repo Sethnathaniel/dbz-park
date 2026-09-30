@@ -32,6 +32,9 @@ class Settings(BaseSettings):
 
     # Comma-separated. In dev the Vite proxy serves /api from the same origin.
     cors_origins: str = "http://localhost:5173"
+    # The worker's broker, and how often it calls the next visitors.
+    redis_url: str = "redis://localhost:6379/0"
+    calling_interval_seconds: float = 5
     # Joining a queue is refused from this hour on (the SPEC closes them at 19:00).
     queue_closing_hour: int = 19
     debug: bool = False

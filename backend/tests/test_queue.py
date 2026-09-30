@@ -3,7 +3,7 @@
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AttractionVisit, QueueEntry
+from app.models import AttractionVisit, QueueEntry, Ticket
 from tests.seed import (
     ENTRY_GOKU_READY,
     ENTRY_GOKU_WAITING,
@@ -11,6 +11,7 @@ from tests.seed import (
     ENTRY_VEGETA_WAITING,
     FREEZER_SHIP,
     KAIO_PALACE,
+    TICKET_VEGETA,
 )
 
 
@@ -45,14 +46,21 @@ class TestMyQueue:
 
 
 class TestPosition:
-    async def test_first_come_is_first_in_line(
-        self, client: AsyncClient, visitor: dict[str, str], other_visitor: dict[str, str]
+    async def test_a_better_fare_is_ahead_whoever_came_first(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        visitor: dict[str, str],
+        other_visitor: dict[str, str],
     ):
+        # goku joined the Time Room first, but vegeta's ticket becomes a Super Saiyan one.
+        (await session.get(Ticket, TICKET_VEGETA)).role = "super_sayan"
+        await session.commit()
+
         goku = await client.get(f"/queue/{ENTRY_GOKU_WAITING}/position/", headers=visitor)
         vegeta = await client.get(f"/queue/{ENTRY_VEGETA_WAITING}/position/", headers=other_visitor)
         assert goku.status_code == vegeta.status_code == 200
-        # goku joined the Time Room ten minutes before vegeta.
-        assert (goku.json(), vegeta.json()) == ({"position": 1}, {"position": 2})
+        assert (vegeta.json(), goku.json()) == ({"position": 1}, {"position": 2})
 
     async def test_a_place_that_is_not_yours_answers_like_a_missing_one(
         self, client: AsyncClient, visitor: dict[str, str]

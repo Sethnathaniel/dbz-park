@@ -10,6 +10,7 @@ from app.db import SessionDep
 from app.dependencies import CurrentUser
 from app.errors import ALREADY_HERE, NO_FREE_TICKET, QUEUE_CLOSED, UNKNOWN_ATTRACTION, ApiError
 from app.models import Attraction, AttractionVisit, QueueEntry, Ticket
+from app.priority import fare_rank
 from app.schemas.attractions import AttractionOut
 
 router = APIRouter(prefix="/attractions", tags=["attractions"])
@@ -23,7 +24,7 @@ async def list_attractions(user: CurrentUser, session: SessionDep) -> list[Attra
 
 @router.post("/{attraction_id}/queue/join/")
 async def join_queue(attraction_id: int, user: CurrentUser, session: SessionDep) -> Response:
-    """Takes a place in the queue, with the visitor's first ticket that is not engaged anywhere."""
+    """Takes a place in the queue, with the visitor's best ticket not engaged anywhere."""
     if datetime.now().hour >= get_settings().queue_closing_hour:
         raise ApiError(QUEUE_CLOSED)
 
@@ -53,7 +54,7 @@ async def join_queue(attraction_id: int, user: CurrentUser, session: SessionDep)
             Ticket.id.not_in(select(QueueEntry.ticket_id)),
             Ticket.id.not_in(select(AttractionVisit.ticket_id)),
         )
-        .order_by(Ticket.id)
+        .order_by(fare_rank(Ticket.role), Ticket.id)
         .limit(1)
     )
     if ticket_id is None:

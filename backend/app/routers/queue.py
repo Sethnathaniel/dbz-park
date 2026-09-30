@@ -1,7 +1,7 @@
 """Places held in a queue: position, withdrawal, validation."""
 
 from fastapi import APIRouter, Response
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import func, literal, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -10,6 +10,7 @@ from app.db import SessionDep
 from app.dependencies import CurrentUser
 from app.errors import NOT_CALLED, TURN_MISSED, UNKNOWN_ENTRY, ApiError
 from app.models import AttractionVisit, QueueEntry, Ticket, User
+from app.priority import fare_rank, rank_of
 from app.schemas.attractions import MyEntryOut, MyQueueOut, MyVisitOut, PositionOut
 from app.schemas.tickets import TicketOut
 
@@ -27,17 +28,20 @@ async def own_entry(session: AsyncSession, entry_id: int, user: User) -> QueueEn
 
 
 async def position_of(session: AsyncSession, entry: QueueEntry) -> int:
-    """First come, first served: waiting places that joined before this one, plus itself."""
+    """Waiting places the worker would call before this one, plus itself (app.priority)."""
     if entry.is_ready:
         return 0
+    role = await session.scalar(select(Ticket.role).where(Ticket.id == entry.ticket_id))
     return await session.scalar(
         select(func.count())
         .select_from(QueueEntry)
+        .join(Ticket)
         .where(
             QueueEntry.attraction_id == entry.attraction_id,
             QueueEntry.is_ready.is_(False),
-            # The id breaks ties between two visitors who joined in the same instant.
-            tuple_(QueueEntry.joined_at, QueueEntry.id) <= tuple_(entry.joined_at, entry.id),
+            # Fare, then arrival; the id breaks ties between two who joined in the same instant.
+            tuple_(fare_rank(Ticket.role), QueueEntry.joined_at, QueueEntry.id)
+            <= tuple_(literal(rank_of(role)), entry.joined_at, entry.id),
         )
     )
 

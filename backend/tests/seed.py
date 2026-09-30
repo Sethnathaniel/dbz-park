@@ -82,13 +82,13 @@ async def reset_and_seed(session: AsyncSession) -> None:
                 ticket_id=TICKET_VEGETA,
                 joined_at=now - timedelta(minutes=10),
             ),
-            # Called a minute ago: still inside the 300 s grace period.
+            # Called ten seconds ago: still inside the 30 s grace period.
             QueueEntry(
                 attraction_id=KAIO_PALACE,
                 ticket_id=TICKET_GOKU_SUPER,
                 joined_at=now - timedelta(minutes=30),
                 is_ready=True,
-                ready_at=now - timedelta(minutes=1),
+                ready_at=now - timedelta(seconds=10),
             ),
             # Called ten minutes ago: the turn was missed.
             QueueEntry(
@@ -104,7 +104,7 @@ async def reset_and_seed(session: AsyncSession) -> None:
                 ticket_id=TICKET_GOKU_THIRD,
                 joined_at=now - timedelta(minutes=15),
                 is_ready=True,
-                ready_at=now - timedelta(minutes=1),
+                ready_at=now - timedelta(seconds=10),
             ),
         ]
     )
