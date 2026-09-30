@@ -11,6 +11,8 @@ import { getToken } from './client'
 
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
 
+const OUT_OF_SERVICE = "L'attraction est hors service : la file reprendra à sa réouverture."
+
 const ROLE_KEYS = ['normal', 'sayan', 'super_sayan']
 
 // Du meilleur rôle au plus commun : c'est cet ordre qui décide du billet joué.
@@ -31,9 +33,9 @@ const db = {
     { id: 3, user_id: null, numero: 'DBZ-0003', role: 'sayan', created_at: '2026-09-17T08:00:00' },
   ],
   attractions: [
-    { id: 1, name: 'La Salle du Temps', photo_url: '', max_people: 50, avg_duration: 210, max_seconds_allowing_ready: 300 },
-    { id: 2, name: 'Le Vaisseau de Freezer', photo_url: '', max_people: 30, avg_duration: 270, max_seconds_allowing_ready: 180 },
-    { id: 3, name: 'Le Palais de Kaio', photo_url: '', max_people: 20, avg_duration: 90, max_seconds_allowing_ready: 240 },
+    { id: 1, name: 'La Salle du Temps', photo_url: '', max_people: 50, avg_duration: 210, max_seconds_allowing_ready: 300, incident_reason: null, incident_since: null },
+    { id: 2, name: 'Le Vaisseau de Freezer', photo_url: '', max_people: 30, avg_duration: 270, max_seconds_allowing_ready: 180, incident_reason: null, incident_since: null },
+    { id: 3, name: 'Le Palais de Kaio', photo_url: '', max_people: 20, avg_duration: 90, max_seconds_allowing_ready: 240, incident_reason: null, incident_since: null },
   ],
   entries: [],
   visits: [],
@@ -245,6 +247,8 @@ export const mock = {
       max_people: attraction.max_people,
       people_inside: peopleInside(attraction.id),
       avg_duration: attraction.avg_duration,
+      incident_reason: attraction.incident_reason,
+      incident_since: attraction.incident_since,
     }))
   },
 
@@ -260,7 +264,10 @@ export const mock = {
     if (db.visits.some(here)) fail('Vous êtes déjà à l\'intérieur de cette attraction.')
     const ticket = bestTicket(attractionId)
     if (!ticket) fail('Aucun de vos billets ne peut rejoindre cette file.')
-    const alone = db.entries.filter((e) => e.attraction_id === attractionId).length === 0
+    // Une file en pause garde les nouveaux venus, mais n'appelle personne.
+    const alone =
+      !attractionOf(attractionId).incident_reason &&
+      db.entries.filter((e) => e.attraction_id === attractionId).length === 0
     db.entries.push({
       id: nextId(),
       attraction_id: attractionId,
@@ -309,7 +316,10 @@ export const mock = {
     if (!entry || ticketOf(entry.ticket_id)?.user_id !== currentUser.id) {
       fail("Cette place n'existe plus.")
     }
-    return { position: positionOf(entry) }
+    return {
+      position: entry.is_ready ? 0 : positionOf(entry),
+      paused: Boolean(attractionOf(entry.attraction_id).incident_reason),
+    }
   },
 
   async leaveQueue(entryId) {
@@ -324,6 +334,7 @@ export const mock = {
     requireUser()
     const entry = db.entries.find((e) => e.id === entryId)
     if (!entry) fail("Cette place n'existe plus.")
+    if (attractionOf(entry.attraction_id).incident_reason) fail(OUT_OF_SERVICE)
     if (!entry.is_ready) fail("Votre tour n'est pas encore venu.")
     if (readyExpired(entry)) fail('Votre tour est passé : la place a été rendue à la file.')
     db.visits.push({
@@ -346,6 +357,8 @@ export const mock = {
         id: attraction.id,
         name: attraction.name,
         max_people: attraction.max_people,
+        incident_reason: attraction.incident_reason,
+        incident_since: attraction.incident_since,
       },
       inside: peopleInside(attraction.id),
       waiting: db.entries.filter((e) => e.attraction_id === attraction.id && !e.is_ready).length,
@@ -375,6 +388,7 @@ export const mock = {
     const entry = db.entries.find((e) => e.id === entryId)
     if (!entry) fail("Cette place n'existe plus.")
     const attraction = attractionOf(entry.attraction_id)
+    if (attraction.incident_reason) fail(OUT_OF_SERVICE)
     if (peopleInside(attraction.id) >= attraction.max_people) {
       fail("L'attraction est pleine : attendez une sortie.")
     }
@@ -394,6 +408,36 @@ export const mock = {
     const user = requireUser()
     if (!user.is_staff) fail('Connectez-vous pour continuer.')
     db.entries = db.entries.filter((e) => e.id !== entryId)
+    return null
+  },
+
+  // Incident : la file se fige. Les appelés repassent en attente sans perdre leur rang.
+  async declareIncident(attractionId, reason) {
+    await wait()
+    const user = requireUser()
+    if (!user.is_staff) fail('Connectez-vous pour continuer.')
+    const attraction = attractionOf(attractionId)
+    if (!attraction) fail('Cette attraction est introuvable.')
+    if (!reason?.trim()) fail("Indiquez le motif de l'incident.")
+    attraction.incident_since ??= new Date().toISOString()
+    attraction.incident_reason = reason.trim()
+    for (const entry of db.entries) {
+      if (entry.attraction_id === attractionId && entry.is_ready && !readyExpired(entry)) {
+        entry.is_ready = false
+        entry.ready_at = null
+      }
+    }
+    return null
+  },
+
+  async resumeAttraction(attractionId) {
+    await wait()
+    const user = requireUser()
+    if (!user.is_staff) fail('Connectez-vous pour continuer.')
+    const attraction = attractionOf(attractionId)
+    if (!attraction) fail('Cette attraction est introuvable.')
+    attraction.incident_reason = null
+    attraction.incident_since = null
     return null
   },
 }

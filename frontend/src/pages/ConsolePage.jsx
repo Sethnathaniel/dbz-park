@@ -4,7 +4,13 @@
  */
 import { useEffect, useState } from 'react'
 
-import { acceptEntry, listConsole, refuseEntry } from '../api/console'
+import {
+  acceptEntry,
+  declareIncident,
+  listConsole,
+  refuseEntry,
+  resumeAttraction,
+} from '../api/console'
 import Alert from '../components/Alert'
 import CapacityBadge from '../components/CapacityBadge'
 import EmptyState from '../components/EmptyState'
@@ -14,6 +20,73 @@ import { formatTime, timeSince } from '../utils/format'
 
 // Au rythme du worker, qui appelle les visiteurs suivants toutes les 5 s côté back.
 const REFRESH_MS = 5_000
+
+/**
+ * Arrêter une attraction ou la remettre en service.
+ *
+ * Le motif est demandé avant d'arrêter : les visiteurs le lisent tel quel sur
+ * la carte de l'attraction, il doit donc leur parler.
+ */
+function IncidentControl({ attraction, onDeclare, onResume }) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+
+  if (attraction.incident_reason) {
+    return (
+      <div className="queue-panel queue-incident incident-control">
+        <p className="queue-line">
+          <i className="bi bi-cone-striped" />
+          <strong>Hors service</strong> depuis {formatTime(attraction.incident_since)} :{' '}
+          {attraction.incident_reason}
+        </p>
+        <button type="button" className="btn btn-park btn-sm" onClick={onResume}>
+          <i className="bi bi-play-circle" />
+          Remettre en service
+        </button>
+      </div>
+    )
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="btn btn-park-ghost btn-sm incident-control"
+        onClick={() => setOpen(true)}
+      >
+        <i className="bi bi-exclamation-octagon" />
+        Déclarer un incident
+      </button>
+    )
+  }
+
+  async function submit(event) {
+    event.preventDefault()
+    await onDeclare(reason)
+    setOpen(false)
+    setReason('')
+  }
+
+  return (
+    <form className="incident-control incident-form" onSubmit={submit}>
+      <input
+        className="form-control form-control-sm"
+        placeholder="Motif, lu par les visiteurs : panne, météo…"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        maxLength={200}
+        required
+        autoFocus
+      />
+      <button type="submit" className="btn btn-park btn-sm">
+        Arrêter l'attraction
+      </button>
+      <button type="button" className="btn btn-park-ghost btn-sm" onClick={() => setOpen(false)}>
+        Annuler
+      </button>
+    </form>
+  )
+}
 
 export default function ConsolePage() {
   const { data: rows, loading, error, reload } = useApi(listConsole)
@@ -63,6 +136,22 @@ export default function ConsolePage() {
               <CapacityBadge icon="bi-hourglass-split">{row.waiting} en attente</CapacityBadge>
             </span>
           </h2>
+
+          <IncidentControl
+            attraction={row.attraction}
+            onDeclare={(reason) =>
+              runAction(
+                () => declareIncident(row.attraction.id, reason),
+                `${row.attraction.name} est hors service : sa file est en pause.`,
+              )
+            }
+            onResume={() =>
+              runAction(
+                () => resumeAttraction(row.attraction.id),
+                `${row.attraction.name} est remise en service : la file reprend.`,
+              )
+            }
+          />
 
           {row.ready.length > 0 ? (
             <div className="table-responsive">

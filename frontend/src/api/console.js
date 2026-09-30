@@ -1,4 +1,4 @@
-/** Le poste de l'admin : qui est appelé, et les deux décisions possibles. */
+/** Le poste de l'admin : qui est appelé, les deux décisions possibles, et les incidents. */
 import { api } from './client'
 import { endpoints } from './endpoints'
 import { USE_MOCK, mock } from './mock'
@@ -13,4 +13,17 @@ export function acceptEntry(entryId) {
 
 export function refuseEntry(entryId) {
   return USE_MOCK ? mock.refuseEntry(entryId) : api.post(endpoints.refuseEntry(entryId))
+}
+
+/** Met l'attraction hors service : sa file se met en pause, personne ne perd sa place. */
+export function declareIncident(attractionId, reason) {
+  return USE_MOCK
+    ? mock.declareIncident(attractionId, reason)
+    : api.post(endpoints.declareIncident(attractionId), { reason })
+}
+
+export function resumeAttraction(attractionId) {
+  return USE_MOCK
+    ? mock.resumeAttraction(attractionId)
+    : api.post(endpoints.resumeAttraction(attractionId))
 }

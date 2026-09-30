@@ -31,4 +31,6 @@ export const endpoints = {
   console: '/console/', //      GET
   acceptEntry: (entryId) => `/console/entries/${entryId}/accept/`, // POST
   refuseEntry: (entryId) => `/console/entries/${entryId}/refuse/`, // POST
+  declareIncident: (attractionId) => `/console/attractions/${attractionId}/incident/`, // POST
+  resumeAttraction: (attractionId) => `/console/attractions/${attractionId}/resume/`, //  POST
 }

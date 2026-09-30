@@ -3,7 +3,8 @@
  *
  * Ce panneau porte l'un des quatre cas, dans l'ordre où le contrat les donne :
  * le visiteur est à l'intérieur, il est appelé, son tour est passé, il attend —
- * ou bien il peut rejoindre la file.
+ * ou bien il peut rejoindre la file. Au-dessus, un bandeau quand l'attraction
+ * est hors service : la file est alors en pause, et chacun garde sa place.
  */
 import { useEffect, useState } from 'react'
 
@@ -19,32 +20,33 @@ const DEFAULT_PHOTO = '/attraction-default.svg'
 const POSITION_REFRESH_MS = 10_000
 
 /**
- * Le rang du visiteur, rafraîchi tout seul pendant qu'il attend.
+ * Le rang du visiteur, rafraîchi tout seul tant qu'il a une place.
  *
  * La liste des attractions donne déjà un rang au chargement ; ensuite, plutôt
  * que de la recharger entière, on ne redemande que ce qui bouge : le rang
  * baisse à mesure que ceux de devant sont appelés ou quittent la file.
  */
-function useLivePosition(entry, initialPosition, onCalled) {
+function useLivePosition(entry, initialPosition, paused, onChange) {
   const [position, setPosition] = useState(initialPosition)
 
   // Une nouvelle liste d'attractions fait autorité sur ce qu'on affichait.
   useEffect(() => setPosition(initialPosition), [initialPosition])
 
   const entryId = entry?.id
-  const waiting = Boolean(entryId) && !entry.is_ready
+  const called = Boolean(entry?.is_ready)
 
   useEffect(() => {
-    if (!waiting) return undefined
+    if (!entryId) return undefined
 
     let cancelled = false
     const tick = () =>
       queuePosition(entryId)
         .then((data) => {
           if (cancelled) return
-          // 0 : le worker vient de l'appeler. Seule la carte complète sait l'afficher.
-          if (data.position === 0) onCalled?.()
-          else setPosition(data.position)
+          // Appelé, remis en attente par un incident, file en pause ou relancée :
+          // la carte a changé d'état, et seule la liste complète sait l'afficher.
+          if ((data.position === 0) !== called || data.paused !== paused) onChange?.()
+          else if (!called) setPosition(data.position)
         })
         // Un rang qui ne revient pas n'est pas une raison d'alerter le
         // visiteur : on garde le dernier connu jusqu'au prochain essai.
@@ -55,7 +57,7 @@ function useLivePosition(entry, initialPosition, onCalled) {
       cancelled = true
       clearInterval(timer)
     }
-  }, [entryId, waiting, onCalled])
+  }, [entryId, called, paused, onChange])
 
   return position
 }
@@ -70,11 +72,29 @@ function LeaveButton({ onLeave }) {
   )
 }
 
-export default function AttractionCard({ card, onJoin, onLeave, onValidate, onCalled }) {
+/** L'attraction est arrêtée : pourquoi, depuis quand, et ce que ça change pour le visiteur. */
+function IncidentBanner({ card }) {
+  return (
+    <div className="queue-panel queue-incident">
+      <p className="queue-line">
+        <i className="bi bi-cone-striped" />
+        <strong>Hors service</strong> depuis {formatTime(card.incident_since)} : {card.incident_reason}
+      </p>
+      <p className="queue-line">
+        {card.entry
+          ? 'La file est en pause : vous gardez votre place, elle reprendra à la réouverture.'
+          : 'La file est en pause jusqu\'à la réouverture.'}
+      </p>
+    </div>
+  )
+}
+
+export default function AttractionCard({ card, onJoin, onLeave, onValidate, onChange }) {
   // `visit`, `entry` et `position` viennent de `GET /queue/`, recollés au
   // catalogue par `listAttractionCards`.
   const { visit, entry } = card
-  const position = useLivePosition(entry, card.position, onCalled)
+  const paused = Boolean(card.incident_reason)
+  const position = useLivePosition(entry, card.position, paused, onChange)
 
   return (
     <div className="attraction-card">
@@ -93,6 +113,8 @@ export default function AttractionCard({ card, onJoin, onLeave, onValidate, onCa
           </CapacityBadge>
           <CapacityBadge icon="bi-stopwatch">{formatDuration(card.avg_duration)}</CapacityBadge>
         </div>
+
+        {paused && <IncidentBanner card={card} />}
 
         {/* 1. Le visiteur est dans l'attraction. */}
         {visit && (

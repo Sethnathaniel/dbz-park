@@ -2,7 +2,7 @@
  * Les attractions du parc, et ce que le visiteur y a en cours.
  * Reprend `attractions/attractions.html`.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { joinQueue, leaveQueue, listAttractionCards, validateQueue } from '../api/attractions'
 import Alert from '../components/Alert'
@@ -10,9 +10,39 @@ import AttractionCard from '../components/AttractionCard'
 import EmptyState from '../components/EmptyState'
 import { useApi } from '../hooks/useApi'
 
+/**
+ * Ce qu'il faut dire au visiteur quand une attraction où il a une place s'arrête
+ * ou repart entre deux lectures de la liste. `null` s'il n'y a rien de neuf.
+ */
+function incidentNews(before, after) {
+  for (const card of after) {
+    const was = before.find((c) => c.id === card.id)
+    if (!was || !card.entry) continue
+    if (card.incident_reason && !was.incident_reason) {
+      return {
+        type: 'warning',
+        message: `${card.name} est hors service : ${card.incident_reason}. Votre file est en pause, vous gardez votre place.`,
+      }
+    }
+    if (!card.incident_reason && was.incident_reason) {
+      return { type: 'success', message: `${card.name} est de nouveau ouverte : la file reprend.` }
+    }
+  }
+  return null
+}
+
 export default function AttractionsPage() {
   const { data: cards, loading, error, reload } = useApi(listAttractionCards)
   const [feedback, setFeedback] = useState(null)
+
+  // La liste d'avant, pour voir ce qui a changé à chaque relecture.
+  const previousCards = useRef(null)
+  useEffect(() => {
+    if (!cards) return
+    const news = previousCards.current && incidentNews(previousCards.current, cards)
+    if (news) setFeedback(news)
+    previousCards.current = cards
+  }, [cards])
 
   /**
    * Les trois gestes sur une file suivent le même déroulé : appeler l'API,
@@ -48,7 +78,7 @@ export default function AttractionsPage() {
           <div className="col-sm-6 col-lg-4" key={card.id}>
             <AttractionCard
               card={card}
-              onCalled={reload}
+              onChange={reload}
               onJoin={() =>
                 runAction(() => joinQueue(card.id), `Vous êtes dans la file de ${card.name}.`)
               }
