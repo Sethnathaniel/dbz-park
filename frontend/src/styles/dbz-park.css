@@ -323,6 +323,13 @@ main {
   color: var(--gray-400);
 }
 
+/* Ce qu'un billet porte à droite : son rôle. */
+.ticket-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .role-badge {
   display: inline-flex;
   align-items: center;

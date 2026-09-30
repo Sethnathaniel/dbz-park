@@ -52,12 +52,12 @@ export default function AttractionsPage() {
               }
               onLeave={() =>
                 runAction(
-                  () => leaveQueue(card.entry.id),
+                  () => leaveQueue(card.entry?.id),
                   `Vous avez quitté la file de ${card.name}.`,
                 )
               }
               onValidate={() =>
-                runAction(() => validateQueue(card.entry.id), `Bienvenue dans ${card.name} !`)
+                runAction(() => validateQueue(card.entry?.id), `Bienvenue dans ${card.name} !`)
               }
             />
           </div>

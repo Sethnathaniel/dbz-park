@@ -9,15 +9,14 @@
 
 export const endpoints = {
   // ── Comptes ─────────────────────────────────────────────────────────────
-  // Pas de route de déconnexion : le jeton est un JWT, le front le jette lui-même.
   signup: '/auth/signup/', //   POST  crée le compte et renvoie un jeton
   login: '/auth/login/', //     POST  échange identifiants contre jeton
   me: '/auth/me/', //           GET   qui est connecté, d'après le jeton
 
   // ── Billets ─────────────────────────────────────────────────────────────
-  userTickets: (userId) => `/user/${userId}/tickets/`, //  GET   les billets d'un visiteur
-  tickets: '/tickets/', //                                 POST  en acheter un
-  assignTicket: '/tickets/assign/', //                     POST  en rattacher un
+  tickets: '/tickets/', //      GET   tous les billets (staff)  ·  POST  en acheter un
+  userTickets: (userId) => `/user/${userId}/tickets/`, //   GET   les billets d'un visiteur
+  assignTicket: '/tickets/assign/', //                      POST  en rattacher un
 
   // ── Attractions & files ─────────────────────────────────────────────────
   attractions: '/attractions/', // GET   le catalogue, rien sur le visiteur

@@ -5,8 +5,8 @@ gabarits Django, mais il est un projet à part : il se lance, se construit et se
 déploie sans le back.
 
 Il parle à l'API FastAPI de `../backend`, selon le contrat décrit dans
-[`../API.md`](../API.md). Il n'y a plus de maquette : sans le back, les pages
-affichent « Le serveur ne répond pas. ».
+[`../API.md`](../API.md). Une maquette (`src/api/mock.js`) reste disponible pour
+travailler sans back, voir plus bas.
 
 ## Lancement
 
@@ -26,10 +26,18 @@ cp .env.example .env
 npm run dev          # http://localhost:5173
 ```
 
-Au premier démarrage, le back crée un compte `admin` / `admin` (qui voit la
+Au premier démarrage, le back crée un compte `admin` / `password` (qui voit la
 console) et 30 billets libres, `DBZ-0001` à `DBZ-0030`. Pour un visiteur : créer
-un compte depuis `/inscription`, puis rattacher un de ces billets depuis
-« Mes billets ».
+un compte depuis `/inscription`, puis acheter un billet ou rattacher un de ceux-là
+depuis « Mes billets ».
+
+Pour travailler sur les écrans sans back, `VITE_USE_MOCK=true` dans `.env` fait
+tourner le front sur des fausses données (`src/api/mock.js`), avec deux comptes :
+
+| Compte  | Mot de passe  | Ce qu'il voit             |
+| ------- | ------------- | ------------------------- |
+| `goku`  | `kamehameha`  | billets, attractions      |
+| `admin` | `admin`       | + la console              |
 
 ## Ce qu'il y a dans quel dossier
 
@@ -38,13 +46,14 @@ src/
 ├── api/          ← tout ce qui parle au back. Le reste du front ne connaît pas fetch.
 │   ├── endpoints.js  LA liste des URL. Un seul fichier à corriger si le back renomme.
 │   ├── client.js     fetch + jeton + erreurs. Le seul endroit qui touche au réseau.
+│   ├── mock.js       le faux back, pour travailler sur les écrans sans le vrai.
 │   └── auth.js · tickets.js · attractions.js · console.js   un fichier par domaine.
 ├── auth/         qui est connecté (AuthContext) et les pages fermées (RequireAuth).
 ├── components/   les morceaux réutilisés : en-tête, carte, pastilles, bandeau.
 ├── hooks/        useApi : charger des données avec ses états (chargement, erreur).
 ├── pages/        un fichier par écran. C'est là qu'on lit ce que fait la page.
 ├── styles/       dbz-park.css, la copie du style du parc.
-└── utils/        la mise en forme des dates.
+└── utils/        la mise en forme des dates et des durées, les libellés des rôles.
 ```
 
 La règle : **une page ne fait jamais d'appel réseau elle-même**. Elle demande à
