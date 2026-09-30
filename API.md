@@ -218,13 +218,18 @@ position, a visit — is not here; it is read from `GET /queue/`.
     "photo_url": "",                         // always "" for now: no column yet
     "max_people": 50,
     "people_inside": 12,
-    "avg_duration": 120                      // seconds, one ride
+    "avg_duration": 120,                     // seconds, one ride
+    "incident_reason": null,                 // set while out of service: the admin's words
+    "incident_since": null                   // when it stopped, null while it runs
   }
 ]
 ```
 `people_inside` is a counter carried by the attraction, not a count made at read
 time: it is the back's job to raise it on entry and lower it on exit, and the
 pair `people_inside` / `max_people` is what says whether the attraction is full.
+
+`incident_reason` being set is what says the attraction is **out of service**: its
+queue is paused, see *Incidents* under the console. Visitors can still join it.
 
 | Code | When |
 | ---- | ---- |
@@ -278,7 +283,7 @@ How many *waiting* places joined before this one, this place included: `1`
 means *next in line*, and `0` means the visitor has already been called. The
 front polls it to refresh the wait without reloading the whole attraction list.
 ```jsonc
-{ "position": 3 }
+{ "position": 3, "paused": false }   // paused: the attraction is out of service
 ```
 
 | Code | When |
@@ -302,7 +307,7 @@ place is deleted and a visit takes over, in the same transaction.
 | Code | When |
 | ---- | ---- |
 | `200 OK` | the visitor is inside. |
-| `400 Bad Request` | not logged in; the place is unknown or not theirs; their turn has not come yet (`is_ready` is false); it has passed (`max_seconds_allowing_ready` elapsed since `ready_at` — within a few seconds the worker deletes the place, and the answer becomes "unknown place"); or the attraction is full. |
+| `400 Bad Request` | not logged in; the place is unknown or not theirs; their turn has not come yet (`is_ready` is false); it has passed (`max_seconds_allowing_ready` elapsed since `ready_at` — within a few seconds the worker deletes the place, and the answer becomes "unknown place"); the attraction is full; or it is out of service. |
 
 ---
 
@@ -317,7 +322,13 @@ holds, or what would have been needed to open it.
 ```jsonc
 [
   {
-    "attraction": { "id": 1, "name": "La Salle du Temps", "max_people": 50 },
+    "attraction": {
+      "id": 1,
+      "name": "La Salle du Temps",
+      "max_people": 50,
+      "incident_reason": null,
+      "incident_since": null
+    },
     "inside": 12,
     "waiting": 34,
     "ready": [
@@ -346,7 +357,7 @@ The visitor goes in. No request body, no response body.
 | Code | When |
 | ---- | ---- |
 | `200 OK` | the place becomes a visit. Unlike the visitor-side validation, an **expired** place can still be accepted — but only until the worker's next tick removes it, a few seconds at most. |
-| `400 Bad Request` | not a logged-in staff account; unknown place; or the attraction is full (`people_inside` = `max_people`) and someone has to come out first. |
+| `400 Bad Request` | not a logged-in staff account; unknown place; the attraction is full (`people_inside` = `max_people`) and someone has to come out first; or it is out of service. |
 
 ### `POST /console/entries/<entry_id>/refuse/`
 The place is removed. No request body, no response body.
@@ -355,6 +366,37 @@ The place is removed. No request body, no response body.
 | ---- | ---- |
 | `200 OK` | the place is gone and the queue moves up. |
 | `400 Bad Request` | not a logged-in staff account, or unknown place. |
+
+### Incidents
+
+An attraction out of service **pauses** its queue, it does not close it: the
+worker calls nobody there, nobody gets in (neither by validation nor by the
+console), and every place keeps its rank. Visitors called and still in time go
+back to waiting, first in line again at the reopening. Those already too late
+are removed by the worker as usual. Joining stays possible. Visitors learn it
+from `incident_reason` in `GET /attractions/`, and from `paused` in the position
+they poll.
+
+### `POST /console/attractions/<id>/incident/`
+Stops the attraction. No response body.
+```jsonc
+// request — the reason is shown to visitors as is
+{ "reason": "Panne du manège, un technicien est en route." }
+```
+
+| Code | When |
+| ---- | ---- |
+| `200 OK` | the attraction is out of service. Declaring again only updates the reason; `incident_since` keeps the first stop. |
+| `400 Bad Request` | not a logged-in staff account; unknown attraction; or an empty reason (more than 200 characters is refused too). |
+
+### `POST /console/attractions/<id>/resume/`
+Back to normal: the worker calls the queue again on its next tick. No request
+body, no response body.
+
+| Code | When |
+| ---- | ---- |
+| `200 OK` | the attraction runs again. Resuming one that was running changes nothing. |
+| `400 Bad Request` | not a logged-in staff account, or unknown attraction. |
 
 ---
 
@@ -387,5 +429,6 @@ Beyond those:
 
 These routes are not called by the current front, but the SPEC plans for them.
 They will be added to `src/api/endpoints.js` without breaking anything:
-park-wide crowd gauge, dynamic QR code, incidents and broadcast notifications,
-supervision KPIs.
+park-wide crowd gauge, dynamic QR code, broadcast notifications (push, e-mail),
+the incident's estimated duration and the purge of a queue stopped for a day or
+more (SPEC §2.5), supervision KPIs.

@@ -1,4 +1,4 @@
-// Mirrors the schema at migration 0004_ready_grace_30s (backend/alembic/versions).
+// Mirrors the schema at migration 0005_attraction_incident (backend/alembic/versions).
 // Source of truth: backend/app/models/. Dates are naive, in the park's local time (PARK_TIMEZONE).
 
 Project dbz_park {
@@ -36,6 +36,8 @@ Table attraction {
   max_people integer [not null]
   avg_duration integer [not null, default: 120, note: 'one ride, in seconds']
   people_inside integer [not null, default: 0, note: 'counter kept in step with attraction_visit, not a count']
+  incident_reason varchar(200) [null, note: 'why the attraction is out of service, null when open']
+  incident_since timestamp [null]
 }
 
 Table queue_entry {
