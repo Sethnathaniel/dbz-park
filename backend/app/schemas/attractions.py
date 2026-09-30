@@ -17,12 +17,17 @@ class AttractionOut(BaseModel):
     max_people: int
     people_inside: int
     avg_duration: int
+    # Both null while the attraction runs; set together when the admin declares an incident.
+    incident_reason: str | None
+    incident_since: datetime | None
 
 
 class PositionOut(BaseModel):
     """Waiting places ahead, this one included: 1 = next in line, 0 = already called."""
 
     position: int
+    # The attraction is out of service: the position holds, but the queue does not move.
+    paused: bool
 
 
 class MyEntryOut(BaseModel):

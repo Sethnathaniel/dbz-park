@@ -20,6 +20,7 @@ QUEUE_CLOSED = "Les files d'attente sont fermées pour aujourd'hui."
 NOT_CALLED = "Ce n'est pas encore votre tour."
 TURN_MISSED = "Votre tour est passé."
 ATTRACTION_FULL = "L'attraction est pleine, il faut attendre une sortie."
+OUT_OF_SERVICE = "L'attraction est hors service : la file reprendra à sa réouverture."
 
 
 class ApiError(HTTPException):

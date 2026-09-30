@@ -5,6 +5,8 @@ the SPEC says. Then the seats left free — neither taken (`people_inside`) nor 
 someone already called — go to the next visitors in line, best fare first, then by
 arrival (app.priority). Same transaction, same instant: a seat freed by a no-show is
 handed on in the very same tick.
+
+An attraction out of service calls nobody: its queue waits, in order, for it to reopen.
 """
 
 import logging
@@ -36,7 +38,8 @@ async def drop_expired_calls(session: AsyncSession, now: datetime) -> int:
 async def call_next_visitors(session: AsyncSession, now: datetime) -> int:
     """Marks as ready as many waiting visitors as there are free seats, best fare first."""
     called = 0
-    for attraction in await session.scalars(select(Attraction).order_by(Attraction.id)):
+    open_attractions = select(Attraction).where(Attraction.incident_reason.is_(None))
+    for attraction in await session.scalars(open_attractions.order_by(Attraction.id)):
         # No-shows are gone by now: every place still marked ready holds a seat.
         promised = await session.scalar(
             select(func.count())

@@ -9,7 +9,7 @@ from app.admission import admit
 from app.db import SessionDep
 from app.dependencies import CurrentUser
 from app.errors import NOT_CALLED, TURN_MISSED, UNKNOWN_ENTRY, ApiError
-from app.models import AttractionVisit, QueueEntry, Ticket, User
+from app.models import Attraction, AttractionVisit, QueueEntry, Ticket, User
 from app.priority import fare_rank, rank_of
 from app.schemas.attractions import MyEntryOut, MyQueueOut, MyVisitOut, PositionOut
 from app.schemas.tickets import TicketOut
@@ -86,7 +86,10 @@ async def my_queue(user: CurrentUser, session: SessionDep) -> MyQueueOut:
 async def queue_position(entry_id: int, user: CurrentUser, session: SessionDep) -> PositionOut:
     """Where this place stands: 1 = next in line, 0 = already called."""
     entry = await own_entry(session, entry_id, user)
-    return PositionOut(position=await position_of(session, entry))
+    attraction = await session.get(Attraction, entry.attraction_id)
+    return PositionOut(
+        position=await position_of(session, entry), paused=attraction.out_of_service
+    )
 
 
 @router.post("/{entry_id}/leave/")

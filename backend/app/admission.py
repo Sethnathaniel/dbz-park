@@ -5,12 +5,16 @@ from datetime import datetime
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.errors import ATTRACTION_FULL, ApiError
+from app.errors import ATTRACTION_FULL, OUT_OF_SERVICE, ApiError
 from app.models import Attraction, AttractionVisit, QueueEntry
 
 
 async def admit(session: AsyncSession, entry: QueueEntry) -> None:
     """The place becomes a visit and the counter moves. The caller commits."""
+    attraction = await session.get(Attraction, entry.attraction_id)
+    if attraction.out_of_service:
+        raise ApiError(OUT_OF_SERVICE)
+
     # Check and increment in one statement: two admissions cannot squeeze into the last seat.
     room = await session.scalar(
         update(Attraction)

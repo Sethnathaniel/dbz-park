@@ -10,7 +10,10 @@ from app.models import QueueEntry
 from tests.seed import KARIN_TOWER, TICKET_GOKU_UNUSED, TIME_ROOM
 
 # Exactly what `GET /attractions/` publishes: the attraction, and nothing about the caller.
-ATTRACTION_FIELDS = {"id", "name", "photo_url", "max_people", "people_inside", "avg_duration"}
+ATTRACTION_FIELDS = {
+    "id", "name", "photo_url", "max_people", "people_inside", "avg_duration",
+    "incident_reason", "incident_since",
+}
 
 
 class TestListAttractions:

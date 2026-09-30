@@ -60,7 +60,10 @@ class TestPosition:
         goku = await client.get(f"/queue/{ENTRY_GOKU_WAITING}/position/", headers=visitor)
         vegeta = await client.get(f"/queue/{ENTRY_VEGETA_WAITING}/position/", headers=other_visitor)
         assert goku.status_code == vegeta.status_code == 200
-        assert (vegeta.json(), goku.json()) == ({"position": 1}, {"position": 2})
+        assert (vegeta.json(), goku.json()) == (
+            {"position": 1, "paused": False},
+            {"position": 2, "paused": False},
+        )
 
     async def test_a_place_that_is_not_yours_answers_like_a_missing_one(
         self, client: AsyncClient, visitor: dict[str, str]
@@ -83,7 +86,7 @@ class TestLeaveQueue:
         assert response.status_code == 200
 
         vegeta = await client.get(f"/queue/{ENTRY_VEGETA_WAITING}/position/", headers=other_visitor)
-        assert vegeta.json() == {"position": 1}
+        assert vegeta.json() == {"position": 1, "paused": False}
 
     async def test_cannot_release_someone_elses_place(
         self, client: AsyncClient, session: AsyncSession, visitor: dict[str, str]

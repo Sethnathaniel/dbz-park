@@ -4,6 +4,8 @@
 token: nothing says the console exists.
 """
 
+from datetime import datetime
+
 from fastapi import APIRouter, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,9 +14,9 @@ from sqlalchemy.orm import selectinload
 from app.admission import admit
 from app.db import SessionDep
 from app.dependencies import StaffUser
-from app.errors import UNKNOWN_ENTRY, ApiError
+from app.errors import UNKNOWN_ATTRACTION, UNKNOWN_ENTRY, ApiError
 from app.models import Attraction, QueueEntry, Ticket
-from app.schemas.console import ConsoleAttractionOut, ConsoleReadyOut, ConsoleRowOut
+from app.schemas.console import ConsoleAttractionOut, ConsoleReadyOut, ConsoleRowOut, IncidentIn
 from app.schemas.tickets import TicketOut
 
 router = APIRouter(prefix="/console", tags=["console"])
@@ -82,5 +84,51 @@ async def accept_entry(entry_id: int, staff: StaffUser, session: SessionDep) -> 
 async def refuse_entry(entry_id: int, staff: StaffUser, session: SessionDep) -> Response:
     """The place is removed and the queue moves up."""
     await session.delete(await any_entry(session, entry_id))
+    await session.commit()
+    return Response(status_code=200)
+
+
+async def any_attraction(session: AsyncSession, attraction_id: int) -> Attraction:
+    attraction = await session.get(Attraction, attraction_id)
+    if attraction is None:
+        raise ApiError(UNKNOWN_ATTRACTION)
+    return attraction
+
+
+@router.post("/attractions/{attraction_id}/incident/")
+async def declare_incident(
+    attraction_id: int, incident: IncidentIn, staff: StaffUser, session: SessionDep
+) -> Response:
+    """Stops the attraction: its queue pauses, and nobody loses their place.
+
+    Visitors called and still in time go back to waiting. Their arrival is untouched, so
+    they are first again when it reopens — rather than running out their 30 seconds
+    meanwhile. Those already too late stay as they are: the worker removes them as usual.
+    Declaring again only updates the reason.
+    """
+    attraction = await any_attraction(session, attraction_id)
+    if not attraction.out_of_service:
+        attraction.incident_since = datetime.now()
+    attraction.incident_reason = incident.reason
+
+    called = await session.scalars(
+        select(QueueEntry).where(
+            QueueEntry.attraction_id == attraction_id, QueueEntry.is_ready.is_(True)
+        )
+    )
+    for entry in called:
+        if not entry.ready_expired():
+            entry.is_ready = False
+            entry.ready_at = None
+    await session.commit()
+    return Response(status_code=200)
+
+
+@router.post("/attractions/{attraction_id}/resume/")
+async def resume_attraction(attraction_id: int, staff: StaffUser, session: SessionDep) -> Response:
+    """Back to normal: the worker calls the queue again on its next tick."""
+    attraction = await any_attraction(session, attraction_id)
+    attraction.incident_reason = None
+    attraction.incident_since = None
     await session.commit()
     return Response(status_code=200)
