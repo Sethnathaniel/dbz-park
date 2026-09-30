@@ -1,65 +1,118 @@
 # Dragon Ball Park
 
-Application Django de billetterie pour un parc d'attractions Dragon Ball Z.
+Application de billetterie et de files d'attente virtuelles pour un parc
+d'attractions Dragon Ball Z.
 
-Structure de code reprise de `bonjour_plant` : un projet `core/` (settings,
-urls) et une app `park_management/` organisée en pages (`pages/<nom>/` avec
-`urls.py`, `views.py`, `forms.py`).
+## Architecture
 
-Le style suit la même approche : Bootstrap et Bootstrap Icons servis depuis
-`static/` (pas de CDN), plus une feuille `dbz-park.css` qui pose les couleurs du
-parc. Le gabarit `park_management/templates/park_management/index.html` porte
-l'en-tête et le menu du compte, en haut à droite ; toutes les pages en héritent.
+Le projet est découplé en trois parties indépendantes, qui ne se parlent que par
+une API JSON :
+
+```
+ navigateur                        serveur API                     base
+┌──────────────┐   HTTP + JSON   ┌──────────────┐    SQL (async)  ┌─────────────┐
+│  frontend/   │ ──────────────► │  backend/    │ ──────────────► │ PostgreSQL  │
+│  React+Vite  │   /api/…        │  FastAPI     │                 │ (Docker)    │
+│  port 5173   │ ◄────────────── │  port 8000   │ ◄────────────── │ port 5432   │
+└──────────────┘  Bearer <JWT>   └──────────────┘                 └─────────────┘
+```
+
+| Partie | Techno | Rôle |
+| ------ | ------ | ---- |
+| [`frontend/`](frontend/README.md) | React 18, Vite, React Router, Bootstrap | Les écrans. Fichiers statiques une fois construits (`npm run build`), déployables sur un CDN. |
+| [`backend/`](backend/README.md) | FastAPI, SQLAlchemy async, Alembic, PyJWT | La logique métier. Ne renvoie que du JSON, jamais de HTML. |
+| `docker-compose.yml` | PostgreSQL 17 | La base, dans son propre conteneur. |
+
+Quelques choix qui découlent de ce découpage :
+
+- **Un contrat unique, [`API.md`](API.md).** Le front et le back s'y conforment
+  tous les deux ; c'est la seule chose qu'ils partagent. Deux codes de réponse
+  seulement : `200`, et `400` avec un `{"detail": "…"}` affiché tel quel.
+- **Un back sans état.** L'authentification passe par un JWT signé, envoyé en
+  `Authorization: Bearer …`. Le serveur ne stocke aucune session : n'importe
+  quelle instance de l'API peut répondre, ce qui permet de la dupliquer seule.
+  Contrepartie : un jeton ne se révoque pas, il expire (12 h par défaut).
+- **Pas de CORS en développement.** Le proxy de Vite renvoie `/api` vers
+  `http://localhost:8000` ; pour le navigateur, tout vient de la même origine.
+  En production, le back autorise les origines listées dans `CORS_ORIGINS`.
+- **Un front qui tourne sans back.** Avec `VITE_USE_MOCK=true` (la valeur par
+  défaut), le front répond depuis de fausses données en mémoire
+  (`frontend/src/api/mock.js`), aux formes exactes de `API.md`.
 
 ## Lancement
 
+Copier `.env.example` en `.env` à la racine : il sert à la fois à
+`docker compose` (identifiants de la base) et au back (mêmes identifiants,
+secret des jetons, origines CORS).
+
+**1. La base**
+
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
+docker compose up -d
 ```
 
-## Fonctionnalités actuelles
+**2. Le back** — [uv](https://docs.astral.sh/uv/) requis
 
-- Un visiteur peut créer un compte (`/compte/inscription/`) et se connecter (`/compte/connexion/`).
-- **Mes billets** (`/`) : les billets ne sont pas créés ici. La billetterie les écrit
-  dans la même base, le visiteur en reçoit le numéro par mail, et cette page ne fait
-  que rattacher un billet libre à son compte — un numéro, et rien d'autre. Le rôle
-  (`normal`, `sayan`, `super_sayan`) est fixé à l'achat et suit le billet.
-  Un numéro inconnu ou déjà pris est refusé, sans dire par qui.
-- **Attractions** (`/attractions/`) : les attractions du parc, avec leur photo (une
-  illustration par défaut si elle manque), leur capacité maximale, la durée d'un tour
-  (`min_duration`, `max_duration`) et le monde qu'elles portent en ce moment. Ce
-  dernier chiffre n'est pas stocké : il se compte sur les présences.
-- **File d'attente virtuelle** (`QueueEntry`) : une place tenue par un billet sur une
-  attraction. On garde la date d'inscription (`joined_at`, qui donne aussi le rang
-  dans la file), l'état prêt (`is_ready`) et l'heure à laquelle il est passé prêt
-  (`ready_at`). L'attraction porte la tolérance de cet état prêt, en secondes
-  (`max_ready_waiting`) : au-delà, le billet a laissé passer son tour et sa place est
-  à donner à un autre (`ready_expired()`, `Attraction.expired_ready_entries()`).
-  La table ne tient que la file du moment : une place disparaît quand son porteur
-  entre ou se désiste, d'où un billet au plus par attraction.
-  Depuis la page des attractions, le visiteur rejoint une file (`join_queue`), la
-  quitte quand il veut (`leave_queue`), et valide sa place une fois appelé
-  (`validate_queue_entry`) : la place est alors supprimée et une présence prend le
-  relais, dans la même transaction. Le billet joué n'est pas demandé : on prend le
-  meilleur rôle parmi ceux qui restent (super saiyan, puis saiyan, puis normal —
-  `Billet.objects.best_role_first()`).
-- **Présences** (`AttractionVisit`) : qui se trouve dans l'attraction et depuis quand
-  (`entered_at`). Là aussi, rien que le présent : la ligne est écrite à l'entrée et
-  effacée à la sortie, donc la table est la liste de ceux qui sont à l'intérieur.
-  Rien n'appelle encore les billets (`is_ready` se pose depuis `/admin/` ou le shell) :
-  c'est le travail de l'attraction, pas de l'interface visiteur.
-- **Console** (`/console/`) : réservée aux comptes admin (`is_staff`). Elle liste, par
-  attraction, les visiteurs appelés — qui, quel billet, quel rôle, depuis combien de
-  temps, et si le délai de tolérance est dépassé — avec deux décisions : **Accepter**
-  (le visiteur entre, sa place quitte la file) ou **Refuser** (la place est retirée).
-  Un visiteur connecté qui tente d'y accéder reçoit un 403.
-  Rien n'appelle encore les billets (`is_ready`) : cela se pose depuis `/admin/` ou le
-  shell, en attendant que l'attraction le fasse elle-même.
-- Les comptes admin ont aussi accès à `/admin/` (`python manage.py createsuperuser`).
+```bash
+cd backend
+uv sync
+uv run alembic upgrade head
+uv run fastapi dev app/main.py     # http://localhost:8000/api/docs
+```
 
-Pour se donner de quoi essayer, `/admin/` permet de créer des billets libres (numéro
-+ rôle, sans visiteur) et des attractions, comme le ferait la billetterie.
+**3. Le front**
+
+```bash
+cd frontend
+npm install
+cp .env.example .env               # VITE_USE_MOCK=false pour appeler le vrai back
+npm run dev                        # http://localhost:5173
+```
+
+Pour ne travailler que sur les écrans, l'étape 3 suffit : en mode maquette, les
+comptes `goku` / `kamehameha` (visiteur) et `admin` / `admin` (personnel)
+existent déjà.
+
+## Tests
+
+```bash
+cd backend
+uv run pytest
+```
+
+Les tests tournent sur le Postgres du `docker compose`, dans une base à part
+(`<POSTGRES_DB>_test`) remise à zéro avant chaque test. Détails dans
+[`backend/README.md`](backend/README.md#tests).
+
+## Fonctionnalités
+
+Le cahier des charges complet est dans [`SPEC.md`](SPEC.md), les routes dans
+[`API.md`](API.md).
+
+- **Comptes** : inscription et connexion (`/inscription`, `/connexion`).
+  Se déconnecter, c'est oublier le jeton côté front : il n'y a pas de route
+  pour ça.
+- **Mes billets** (`/`) : le visiteur rattache à son compte un billet libre par
+  son numéro. Le rôle du billet (`normal`, `sayan`, `super_sayan`) est fixé à
+  l'achat et décide de la priorité dans les files. Tous les billets sont
+  considérés comme payés : il n'y a ni colonne ni route de paiement.
+- **Attractions** (`/attractions`) : la liste des attractions et leur
+  affluence ; le visiteur y rejoint une file virtuelle, la quitte, et valide sa
+  place quand il est appelé. Le billet joué est le meilleur qui lui reste
+  (super saiyan, puis saiyan, puis normal).
+- **Console** (`/console`) : réservée aux comptes `is_staff`. Elle liste, par
+  attraction, les visiteurs appelés, avec deux décisions : **Accepter** (le
+  visiteur entre) ou **Refuser** (sa place est retirée).
+
+## État d'avancement
+
+| Partie | État |
+| ------ | ---- |
+| Front | Tous les écrans sont écrits et tournent sur la maquette. |
+| Base | Schéma complet (cinq tables) et migration initiale. |
+| Back | Configuration, modèles, jetons et routes de comptes (`signup`, `login`, `me`) écrits. Les routes de billets, attractions, files et console existent avec leur signature définitive mais répondent encore `501` (`grep -rn 'todo(' backend/app/routers/`). |
+| Déploiement | Seule la base est conteneurisée ; le back et le front se lancent à la main. |
+
+Il n'y a plus de panneau `/admin/` comme dans l'ancienne version Django : les
+données de départ (attractions, billets libres) s'écrivent pour l'instant
+directement en base.
