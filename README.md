@@ -21,7 +21,7 @@ une API JSON :
 | ------ | ------ | ---- |
 | [`frontend/`](frontend/README.md) | React 18, Vite, React Router, Bootstrap | Les écrans. Fichiers statiques une fois construits (`npm run build`), déployables sur un CDN. |
 | [`backend/`](backend/README.md) | FastAPI, SQLAlchemy async, Alembic, PyJWT | La logique métier. Ne renvoie que du JSON, jamais de HTML. |
-| `docker-compose.yml` | PostgreSQL 17, nginx | Les trois conteneurs : la base, le back, et le front servi par nginx. |
+| `docker-compose.yml` | PostgreSQL 17, Redis, nginx | Les cinq conteneurs : la base, le back, le worker et son broker Redis, et le front servi par nginx. |
 
 Quelques choix qui découlent de ce découpage :
 
@@ -112,8 +112,9 @@ Le cahier des charges complet est dans [`SPEC.md`](SPEC.md), les routes dans
   paiement. Le staff voit en plus tous les billets du parc et leur détenteur.
 - **Attractions** (`/attractions`) : la liste des attractions et leur
   affluence ; le visiteur y rejoint une file virtuelle, la quitte, et valide sa
-  place quand il est appelé. Les files suivent l'ordre d'arrivée, et le billet
-  joué est le premier qui lui reste libre.
+  place quand il est appelé. Un worker appelle les visiteurs quand des places se
+  libèrent : Super Sayan d'abord, puis Saiyan, puis humains, et dans un même tarif,
+  le premier arrivé. Le billet joué est le meilleur qui lui reste libre.
 - **Console** (`/console`) : réservée aux comptes `is_staff`. Elle liste, par
   attraction, les visiteurs appelés, avec deux décisions : **Accepter** (le
   visiteur entre) ou **Refuser** (sa place est retirée).
@@ -124,12 +125,12 @@ Le cahier des charges complet est dans [`SPEC.md`](SPEC.md), les routes dans
 | ------ | ---- |
 | Front | Tous les écrans sont écrits et branchés sur le back ; la maquette reste disponible. |
 | Base | Schéma complet (cinq tables), trois migrations. |
-| Back | Les 16 routes de `API.md` sont écrites, avec 3 tests chacune. |
-| Déploiement | Base, back et front conteneurisés (`docker compose up -d --build`). |
+| Back | Les 17 routes de `API.md` sont écrites, avec 3 tests chacune. Un worker Celery appelle les visiteurs suivants toutes les 5 s. |
+| Déploiement | Base, back, worker, Redis et front conteneurisés (`docker compose up -d --build`). |
 
-Trois routes manquent pour que l'app tienne seule : créer une attraction, appeler
-un visiteur (`is_ready` ne se pose qu'à la main), enregistrer une sortie
-(`people_inside` ne fait que monter).
+Deux routes manquent pour que l'app tienne seule : créer une attraction, et
+enregistrer une sortie. En attendant la seconde, une tâche **temporaire** du worker
+fait sortir tout visiteur entré depuis 30 s (`backend/app/temporary_exits.py`).
 
 Il n'y a plus de panneau `/admin/` comme dans l'ancienne version Django : les
 données de départ (attractions, billets libres) s'écrivent pour l'instant

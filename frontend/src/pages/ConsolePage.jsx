@@ -2,7 +2,7 @@
  * Le poste de l'admin : par attraction, les visiteurs appelés et les deux
  * décisions possibles. Reprend `console/console.html`.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { acceptEntry, listConsole, refuseEntry } from '../api/console'
 import Alert from '../components/Alert'
@@ -12,9 +12,18 @@ import RoleBadge from '../components/RoleBadge'
 import { useApi } from '../hooks/useApi'
 import { formatTime, timeSince } from '../utils/format'
 
+// Au rythme du worker, qui appelle les visiteurs suivants toutes les 5 s côté back.
+const REFRESH_MS = 5_000
+
 export default function ConsolePage() {
   const { data: rows, loading, error, reload } = useApi(listConsole)
   const [feedback, setFeedback] = useState(null)
+
+  // Les appels arrivent sans que l'admin ne fasse rien : la liste se relit seule.
+  useEffect(() => {
+    const timer = setInterval(reload, REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [reload])
 
   async function runAction(action, successMessage) {
     try {
@@ -26,7 +35,8 @@ export default function ConsolePage() {
     }
   }
 
-  if (loading) {
+  // Seulement au premier chargement : un rafraîchissement ne doit pas faire clignoter la page.
+  if (loading && !rows) {
     return <EmptyState icon="bi-hourglass-split">Chargement de la console…</EmptyState>
   }
 

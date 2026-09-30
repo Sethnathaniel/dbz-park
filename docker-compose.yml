@@ -1,6 +1,15 @@
 # Reads the .env next to this file, the same one the back reads in development.
 name: dbz-park
 
+# What the back and the worker share: they run the same code on the same database.
+x-backend-environment: &backend-environment
+  # Inside the compose network the database is the `db` service, on its own port.
+  POSTGRES_HOST: db
+  POSTGRES_PORT: 5432
+  # Dates are stored without a zone, as the park's local time: the container must live there.
+  TZ: ${PARK_TIMEZONE:-Europe/Paris}
+  REDIS_URL: redis://redis:6379/0
+
 services:
   db:
     image: postgres:17-alpine
@@ -25,12 +34,7 @@ services:
     build: ./backend
     restart: unless-stopped
     env_file: .env
-    environment:
-      # Inside the compose network the database is the `db` service, on its own port.
-      POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-      # Dates are stored without a zone, as the park's local time: the container must live there.
-      TZ: ${PARK_TIMEZONE:-Europe/Paris}
+    environment: *backend-environment
     depends_on:
       db:
         condition: service_healthy
@@ -39,6 +43,29 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Calls the next visitors every few seconds, outside the HTTP cycle (Celery beat + worker).
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["celery", "-A", "app.worker", "worker", "--beat", "--concurrency=1", "--loglevel=info", "--schedule=/tmp/celerybeat-schedule"]
+    env_file: .env
+    environment: *backend-environment
+    # The back applies the migrations: the worker waits for the schema to exist.
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build: ./frontend

@@ -28,7 +28,8 @@ export default function AttractionsPage() {
     }
   }
 
-  if (loading) {
+  // Seulement au premier chargement : un rechargement ne doit pas faire clignoter la page.
+  if (loading && !cards) {
     return <EmptyState icon="bi-hourglass-split">Chargement des attractions…</EmptyState>
   }
 
@@ -47,6 +48,7 @@ export default function AttractionsPage() {
           <div className="col-sm-6 col-lg-4" key={card.id}>
             <AttractionCard
               card={card}
+              onCalled={reload}
               onJoin={() =>
                 runAction(() => joinQueue(card.id), `Vous êtes dans la file de ${card.name}.`)
               }

@@ -101,7 +101,7 @@ export default function TicketsPage() {
             </form>
 
             <p className="form-text mt-3 mb-0">
-              Le rôle est fixé à l'achat. Les files, elles, suivent l'ordre d'arrivée.
+              Le rôle est fixé à l'achat, et décide de votre priorité dans les files.
             </p>
           </div>
 

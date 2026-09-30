@@ -25,7 +25,7 @@ const POSITION_REFRESH_MS = 10_000
  * que de la recharger entière, on ne redemande que ce qui bouge : le rang
  * baisse à mesure que ceux de devant sont appelés ou quittent la file.
  */
-function useLivePosition(entry, initialPosition) {
+function useLivePosition(entry, initialPosition, onCalled) {
   const [position, setPosition] = useState(initialPosition)
 
   // Une nouvelle liste d'attractions fait autorité sur ce qu'on affichait.
@@ -41,7 +41,10 @@ function useLivePosition(entry, initialPosition) {
     const tick = () =>
       queuePosition(entryId)
         .then((data) => {
-          if (!cancelled) setPosition(data.position)
+          if (cancelled) return
+          // 0 : le worker vient de l'appeler. Seule la carte complète sait l'afficher.
+          if (data.position === 0) onCalled?.()
+          else setPosition(data.position)
         })
         // Un rang qui ne revient pas n'est pas une raison d'alerter le
         // visiteur : on garde le dernier connu jusqu'au prochain essai.
@@ -52,7 +55,7 @@ function useLivePosition(entry, initialPosition) {
       cancelled = true
       clearInterval(timer)
     }
-  }, [entryId, waiting])
+  }, [entryId, waiting, onCalled])
 
   return position
 }
@@ -67,11 +70,11 @@ function LeaveButton({ onLeave }) {
   )
 }
 
-export default function AttractionCard({ card, onJoin, onLeave, onValidate }) {
+export default function AttractionCard({ card, onJoin, onLeave, onValidate, onCalled }) {
   // `visit`, `entry` et `position` viennent de `GET /queue/`, recollés au
   // catalogue par `listAttractionCards`.
   const { visit, entry } = card
-  const position = useLivePosition(entry, card.position)
+  const position = useLivePosition(entry, card.position, onCalled)
 
   return (
     <div className="attraction-card">
@@ -151,7 +154,7 @@ export default function AttractionCard({ card, onJoin, onLeave, onValidate }) {
               <i className="bi bi-hourglass-split" />
               Rejoindre la file
             </button>
-            <p className="queue-note">Votre premier billet libre sera utilisé.</p>
+            <p className="queue-note">Votre meilleur billet libre sera utilisé.</p>
           </div>
         )}
       </div>

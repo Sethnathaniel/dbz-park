@@ -233,9 +233,10 @@ pair `people_inside` / `max_people` is what says whether the attraction is full.
 
 ### `POST /attractions/<id>/queue/join/`
 No request body, no response body. The back picks the ticket itself: the
-visitor's first ticket that holds no place and no visit anywhere — a ticket is
-engaged in one thing at a time. Roles play no part: the queue is first come,
-first served. The closing hour comes from `QUEUE_CLOSING_HOUR` (19 by default).
+visitor's best ticket that holds no place and no visit anywhere — a ticket is
+engaged in one thing at a time. "Best" is the queue's own order: `super_sayan`,
+then `sayan`, then `normal`, then any other role. The closing hour comes from
+`QUEUE_CLOSING_HOUR` (19 by default).
 
 | Code | When |
 | ---- | ---- |
@@ -256,7 +257,7 @@ and the attractions they are inside. The front reads it next to
       "joined_at": "2026-09-17T13:40:00",
       "is_ready": false,
       "ready_at": null,
-      "max_seconds_allowing_ready": 300,
+      "max_seconds_allowing_ready": 30,  // 30 s to show up once called
       "ready_expired": false,   // computed by the back, not by the front
       "position": 3             // same meaning as the route below: 0 once called
     }
@@ -282,7 +283,7 @@ front polls it to refresh the wait without reloading the whole attraction list.
 
 | Code | When |
 | ---- | ---- |
-| `200 OK` | the current position, recomputed on each call: it only shrinks, as people ahead are called or leave. |
+| `200 OK` | the current position, in the order the worker calls: fare first, then arrival. Recomputed on each call — it shrinks as people ahead are called or leave, and grows when a better fare joins ahead. |
 | `400 Bad Request` | not logged in, or the place is unknown **or** not this visitor's — same `detail` for both, since a position tells how busy a queue is. |
 
 ### `POST /queue/<entry_id>/leave/`
@@ -301,7 +302,7 @@ place is deleted and a visit takes over, in the same transaction.
 | Code | When |
 | ---- | ---- |
 | `200 OK` | the visitor is inside. |
-| `400 Bad Request` | not logged in; the place is unknown or not theirs; their turn has not come yet (`is_ready` is false); it has passed (`max_seconds_allowing_ready` elapsed since `ready_at`); or the attraction is full. |
+| `400 Bad Request` | not logged in; the place is unknown or not theirs; their turn has not come yet (`is_ready` is false); it has passed (`max_seconds_allowing_ready` elapsed since `ready_at` — within a few seconds the worker deletes the place, and the answer becomes "unknown place"); or the attraction is full. |
 
 ---
 
@@ -325,7 +326,7 @@ holds, or what would have been needed to open it.
         "username": "goku",
         "ticket": { "id": 1, "numero": "DBZ-0001", "role": "super_sayan" },
         "ready_at": "2026-09-17T14:00:00",
-        "max_seconds_allowing_ready": 300,
+        "max_seconds_allowing_ready": 30,
         "ready_expired": false
       }
     ]
@@ -344,7 +345,7 @@ The visitor goes in. No request body, no response body.
 
 | Code | When |
 | ---- | ---- |
-| `200 OK` | the place becomes a visit. Unlike the visitor-side validation, an **expired** place can be accepted: the admin decides. |
+| `200 OK` | the place becomes a visit. Unlike the visitor-side validation, an **expired** place can still be accepted — but only until the worker's next tick removes it, a few seconds at most. |
 | `400 Bad Request` | not a logged-in staff account; unknown place; or the attraction is full (`people_inside` = `max_people`) and someone has to come out first. |
 
 ### `POST /console/entries/<entry_id>/refuse/`
@@ -359,13 +360,28 @@ The place is removed. No request body, no response body.
 
 ## Reserved for endpoints that do not exist yet
 
-Two gaps the current routes leave open, worth closing first:
+Calling a visitor is not a route: a worker (Celery, `backend/app/worker.py`) does it
+every `CALLING_INTERVAL_SECONDS` (5 by default), outside any request. Each tick,
+in one transaction:
 
-- **Nothing calls a visitor.** No route sets `is_ready`: a place only becomes
-  "called" by hand, in the database. Until then, `validate` and the console have
-  nobody to act on outside of tests.
-- **Nobody comes out.** Entering raises `people_inside`, but no route records an
-  exit, so the counter only grows and an attraction eventually reads as full for good.
+1. **No-shows are removed.** A place called more than `max_seconds_allowing_ready`
+   seconds ago is deleted from the queue, and its ticket is free again.
+2. **The next visitors are called.** On each attraction, the free seats —
+   `max_people`, minus `people_inside`, minus the places already called — go to
+   that many waiting places. **Super Saiyan first; without one, Saiyan; without
+   one, humans (`normal`); any other role last. Inside a fare, first to arrive
+   first.** The same order gives the position a visitor is shown.
+
+Because both happen in the same tick, a seat freed by a no-show goes to the next
+in line straight away.
+
+**Temporary: visitors come out after 30 s.** A second task of the same worker
+(`backend/app/temporary_exits.py`) deletes every visit of 30 seconds or more and
+lowers `people_inside` to match, as if the ride were over — the freed seats are
+then called on the next tick. It stands in for the gap below, and goes away with it:
+
+- **No exit route.** No route records that a visitor came out; without the
+  temporary task the counter would only grow.
 
 Beyond those:
 

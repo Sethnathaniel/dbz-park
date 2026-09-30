@@ -1,4 +1,4 @@
-// Mirrors the schema at migration 0003_role_without_default (backend/alembic/versions).
+// Mirrors the schema at migration 0004_ready_grace_30s (backend/alembic/versions).
 // Source of truth: backend/app/models/. Dates are naive, in the park's local time (PARK_TIMEZONE).
 
 Project dbz_park {
@@ -42,10 +42,10 @@ Table queue_entry {
   id integer [pk, increment]
   attraction_id integer [not null]
   ticket_id integer [not null]
-  joined_at timestamp [not null, default: `now()`, note: 'arrival order: first come, first served']
+  joined_at timestamp [not null, default: `now()`, note: 'order inside a fare: best fare first, then arrival (app/priority.py)']
   is_ready boolean [not null, default: false]
   ready_at timestamp [null]
-  max_seconds_allowing_ready integer [not null, default: 300, note: 'grace period in seconds before the ready state expires']
+  max_seconds_allowing_ready integer [not null, default: 30, note: 'grace period in seconds before the ready state expires']
 
   indexes {
     (attraction_id, ticket_id) [unique, name: 'uq_queue_entry_ticket_per_attraction']
