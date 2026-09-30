@@ -16,7 +16,7 @@ from app.security import hash_password
 logger = logging.getLogger("app.bootstrap")
 
 DEFAULT_STAFF_USERNAME = "admin"
-DEFAULT_STAFF_PASSWORD = "admin"
+DEFAULT_STAFF_PASSWORD = "password"
 DEFAULT_STAFF_EMAIL = "admin@dbz-park.local"
 # The fares an empty park starts with. Nothing else in the back knows this list.
 STARTING_ROLES = ["super_sayan", "sayan", "normal"]
@@ -26,20 +26,13 @@ TICKETS_PER_ROLE = 10
 BOOTSTRAP_LOCK = 20260918
 
 
-async def ensure_staff_account(session: AsyncSession) -> User | None:
-    """Creates the default staff account when the park has none. Returns it, or None."""
-    staff = await session.scalar(select(User).where(User.is_staff.is_(True)).limit(1))
-    if staff is not None:
-        return None
-
-    taken = await session.scalar(select(User).where(User.username == DEFAULT_STAFF_USERNAME))
-    if taken is not None:
-        # Promoting it would hand the console to whoever registered that name first.
-        logger.error(
-            "no staff account, and the username %r is taken by a visitor: "
-            "promote an account by hand, the console stays closed",
-            DEFAULT_STAFF_USERNAME,
-        )
+async def ensure_admin_account(session: AsyncSession) -> User | None:
+    """Creates the `admin` staff account when no user has that name. Returns it, or None."""
+    existing = await session.scalar(select(User).where(User.username == DEFAULT_STAFF_USERNAME))
+    if existing is not None:
+        if not existing.is_staff:
+            # Left as it is: promoting it would hand the console to whoever took the name.
+            logger.warning("%r exists but is not staff: left untouched", DEFAULT_STAFF_USERNAME)
         return None
 
     user = User(
@@ -51,7 +44,7 @@ async def ensure_staff_account(session: AsyncSession) -> User | None:
     session.add(user)
     await session.flush()
     logger.warning(
-        "no staff account found: created %r with the default password — change it",
+        "no %r account found: created it with the default password — change it",
         DEFAULT_STAFF_USERNAME,
     )
     return user
@@ -78,6 +71,6 @@ async def ensure_tickets(session: AsyncSession) -> list[Ticket]:
 async def bootstrap(session: AsyncSession) -> None:
     """Run once at startup, under a lock so several workers cannot race each other."""
     await session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": BOOTSTRAP_LOCK})
-    await ensure_staff_account(session)
+    await ensure_admin_account(session)
     await ensure_tickets(session)
     await session.commit()

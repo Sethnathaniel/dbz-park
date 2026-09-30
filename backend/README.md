@@ -31,18 +31,20 @@ via le proxy de Vite : pas de CORS à régler en développement.
 Avant la première requête, l'API vérifie deux choses et les répare si besoin
 (`app/bootstrap.py`, appelé par le `lifespan`) :
 
-- **aucun compte `is_staff`** → elle crée `admin` / `admin`. Le mot de passe est en dur :
-  c'est un confort de développement, à ne pas laisser sortir d'ici.
+- **pas de compte `admin`** → elle le crée, staff, avec le mot de passe `password`. Il est
+  en dur : c'est un confort de développement, à changer avant de sortir d'ici.
 - **aucun billet** → elle en crée 30, dix par rôle, non assignés (`DBZ-0001` à `DBZ-0030`).
 
-Les deux tests sont tout ou rien : ils regardent si la table contient *quelque chose*,
-donc ils ne discutent jamais avec des données créées ensuite. Un deuxième démarrage ne
-dit rien et ne touche à rien. Le tout sous un verrou consultatif Postgres, pour que
-plusieurs workers lancés en même temps ne créent pas les mêmes lignes deux fois.
+La vérification porte sur le **nom** `admin`, pas sur l'existence d'un staff quelconque :
+un autre compte staff n'empêche pas sa création. À l'inverse, un `admin` qui existe déjà
+n'est jamais retouché — son mot de passe survit aux redémarrages, même s'il n'est plus
+`password`. Si ce nom a été pris par un visiteur, l'API **ne le promeut pas** (cela
+donnerait la console au premier qui a réservé le nom) : elle le signale dans les logs.
 
-Un cas est traité à part : si le nom `admin` est déjà pris par un visiteur alors qu'il
-n'y a pas de staff, l'API **ne le promeut pas** — cela donnerait la console au premier
-qui a réservé le nom. Elle écrit une erreur dans les logs et laisse la console fermée.
+Les billets, eux, sont tout ou rien : l'API regarde si la table contient *quelque chose*,
+donc elle ne discute jamais avec des billets créés ensuite. Le tout sous un verrou
+consultatif Postgres, pour que plusieurs workers lancés en même temps ne créent pas les
+mêmes lignes deux fois.
 
 ## Ce qu'il y a dans quel fichier
 

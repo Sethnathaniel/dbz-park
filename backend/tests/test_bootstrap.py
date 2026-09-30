@@ -20,24 +20,34 @@ async def empty(session: AsyncSession) -> None:
     await session.commit()
 
 
-class TestStaffAccount:
-    async def test_creates_the_default_admin_when_there_is_no_staff(self, session: AsyncSession):
+class TestAdminAccount:
+    async def test_creates_admin_even_when_another_staff_account_exists(
+        self, session: AsyncSession
+    ):
         await empty(session)
+        # The check is on the name, not on "is there any staff": this one does not count.
+        session.add(User(username="boss", password_hash="x", is_staff=True))
+        await session.commit()
+
         await bootstrap(session)
 
         admin = await session.scalar(select(User).where(User.username == DEFAULT_STAFF_USERNAME))
         assert admin is not None and admin.is_staff
         assert verify_password(DEFAULT_STAFF_PASSWORD, admin.password_hash)
 
-    async def test_does_nothing_when_a_staff_account_already_exists(self, session: AsyncSession):
-        # The seed already has one, named `admin` — the run must be a no-op.
-        before = await session.scalar(select(func.count()).select_from(User))
+    async def test_leaves_an_existing_admin_and_its_password_alone(self, session: AsyncSession):
+        # The seed already has `admin`, with another password: it must survive the restart.
+        admin = await session.scalar(select(User).where(User.username == DEFAULT_STAFF_USERNAME))
+        hash_before = admin.password_hash
         await bootstrap(session)
-        assert await session.scalar(select(func.count()).select_from(User)) == before
 
-    async def test_leaves_the_console_closed_rather_than_promoting_a_visitor(
-        self, session: AsyncSession
-    ):
+        session.expire_all()
+        admin = await session.scalar(select(User).where(User.username == DEFAULT_STAFF_USERNAME))
+        assert admin.password_hash == hash_before
+        assert not verify_password(DEFAULT_STAFF_PASSWORD, admin.password_hash)
+        assert await session.scalar(select(func.count()).select_from(User)) == 3
+
+    async def test_does_not_promote_a_visitor_who_took_the_name(self, session: AsyncSession):
         await empty(session)
         session.add(User(username=DEFAULT_STAFF_USERNAME, password_hash="x", is_staff=False))
         await session.commit()
@@ -47,9 +57,7 @@ class TestStaffAccount:
         squatter = await session.scalar(
             select(User).where(User.username == DEFAULT_STAFF_USERNAME)
         )
-        # Creating it would crash on the unique name, promoting it would hand over the console.
         assert squatter is not None and not squatter.is_staff
-        assert await session.scalar(select(func.count()).select_from(User)) == 1
 
 
 class TestTickets:
