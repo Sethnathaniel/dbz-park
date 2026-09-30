@@ -24,10 +24,6 @@ Deux comptes existent dans la maquette :
 | `goku`  | `kamehameha`  | billets, attractions      |
 | `admin` | `admin`       | + la console              |
 
-> Les deux illustrations viennent du back : copier `static/dbz-park-icon.svg` et
-> `static/attraction-default.svg` dans `frontend/public/`. Sans elles les pages
-> marchent, il manque juste le logo et la photo par défaut.
-
 ## Ce qu'il y a dans quel dossier
 
 ```
