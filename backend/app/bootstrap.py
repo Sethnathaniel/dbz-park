@@ -9,7 +9,7 @@ import logging
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Ticket, TicketRole, User
+from app.models import Ticket, User
 from app.security import hash_password
 
 logger = logging.getLogger("app.bootstrap")
@@ -17,6 +17,8 @@ logger = logging.getLogger("app.bootstrap")
 DEFAULT_STAFF_USERNAME = "admin"
 DEFAULT_STAFF_PASSWORD = "admin"
 DEFAULT_STAFF_EMAIL = "admin@dbz-park.local"
+# The fares an empty park starts with. Nothing else in the back knows this list.
+STARTING_ROLES = ["super_sayan", "sayan", "normal"]
 TICKETS_PER_ROLE = 10
 
 # Any constant: two workers starting at once must not both try to create the same rows.
@@ -62,7 +64,7 @@ async def ensure_tickets(session: AsyncSession) -> list[Ticket]:
     tickets = [
         Ticket(user_id=None, numero=f"DBZ-{number:04d}", role=role)
         for number, role in enumerate(
-            (role for role in TicketRole for _ in range(TICKETS_PER_ROLE)), start=1
+            (role for role in STARTING_ROLES for _ in range(TICKETS_PER_ROLE)), start=1
         )
     ]
     session.add_all(tickets)

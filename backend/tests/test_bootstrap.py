@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bootstrap import (
     DEFAULT_STAFF_PASSWORD,
     DEFAULT_STAFF_USERNAME,
+    STARTING_ROLES,
     TICKETS_PER_ROLE,
     bootstrap,
 )
-from app.models import Ticket, TicketRole, User
+from app.models import Ticket, User
 from app.security import verify_password
 from tests.seed import TABLES
 
@@ -57,10 +58,10 @@ class TestTickets:
         await bootstrap(session)
 
         tickets = (await session.scalars(select(Ticket))).all()
-        assert len(tickets) == TICKETS_PER_ROLE * len(TicketRole)
+        assert len(tickets) == TICKETS_PER_ROLE * len(STARTING_ROLES)
         assert all(ticket.user_id is None for ticket in tickets)
-        for role in TicketRole:
-            assert sum(ticket.role is role for ticket in tickets) == TICKETS_PER_ROLE
+        for role in STARTING_ROLES:
+            assert sum(ticket.role == role for ticket in tickets) == TICKETS_PER_ROLE
 
     async def test_numbers_are_unique_and_sequential(self, session: AsyncSession):
         await empty(session)
@@ -68,7 +69,7 @@ class TestTickets:
 
         numbers = sorted(t.numero for t in (await session.scalars(select(Ticket))).all())
         assert numbers[0] == "DBZ-0001"
-        assert len(set(numbers)) == len(numbers) == TICKETS_PER_ROLE * len(TicketRole)
+        assert len(set(numbers)) == len(numbers) == TICKETS_PER_ROLE * len(STARTING_ROLES)
 
     async def test_does_nothing_when_the_park_already_sells_tickets(self, session: AsyncSession):
         before = await session.scalar(select(func.count()).select_from(Ticket))

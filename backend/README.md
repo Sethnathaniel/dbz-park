@@ -55,6 +55,7 @@ app/
 ├── errors.py      `ApiError("…")` → 400 + detail. La seule erreur du projet.
 ├── main.py        l'app, montée sous /api, et la traduction 422 → 400.
 ├── bootstrap.py   ce que le démarrage garantit : un staff, et des billets.
+├── admission.py   faire entrer quelqu'un : place libre et compteur, en une requête.
 ├── models/        les cinq tables. Rien d'autre ne décrit le schéma.
 ├── schemas/       les formes d'entrée et de sortie de `../API.md`.
 └── routers/       un module par domaine, comme `frontend/src/api/`.
@@ -72,27 +73,24 @@ Deux règles qui expliquent le découpage :
 
 ## État d'avancement
 
-Écrit : la configuration, la base, les modèles, la migration initiale, les
-jetons, les dépendances d'authentification, et les trois routes de comptes
-(`signup`, `login`, `me`).
+Les 15 routes de `../API.md` sont écrites. Deux trous restent dans le contrat lui-même,
+listés à la fin de `API.md` : rien n'appelle un visiteur (`is_ready` ne se pose qu'à la
+main), et aucune route n'enregistre une sortie (`people_inside` ne fait que monter).
 
-Pas encore écrit : les handlers de billets, attractions, files et console. Ils
-existent tous, avec leur signature et leur schéma de réponse définitifs, et
-appellent `todo()` — qui répond `501`, volontairement hors contrat, pour qu'on
-distingue d'un coup d'œil « refusé » (400) de « pas encore fait ».
+Deux choix d'implémentation qui ne se devinent pas en lisant le contrat :
 
-```bash
-uv run python -c "
-from app.main import app
-print(*sorted(app.openapi()['paths']), sep=chr(10))"   # la liste des routes
-grep -rn 'todo(' app/routers/                          # ce qui reste à écrire
-```
+- **Une seule horloge : Python.** Postgres tourne en UTC dans le conteneur, la machine
+  non. Tout ce que la file compare (`joined_at`, `ready_at`, `entered_at`) est écrit avec
+  `datetime.now()` côté API, jamais par le `now()` de la base.
+- **L'entrée dans une attraction** (`app/admission.py`) vérifie la place libre et
+  incrémente `people_inside` dans le même `UPDATE` : deux admissions simultanées ne
+  peuvent pas se partager le dernier siège. La validation du visiteur et l'acceptation
+  de la console passent toutes deux par là.
 
 ## Tests
 
 ```bash
-uv run pytest            # tout
-uv run pytest -q --runxfail   # ce que les routes non écrites feraient vraiment
+uv run pytest
 ```
 
 Les tests tournent sur un **vrai Postgres** — celui du `docker compose` — mais dans une
@@ -102,10 +100,12 @@ sont jamais touchées, et les identifiants sont déterministes : `tests/seed.py`
 (`TICKET_FREE`, `ENTRY_GOKU_READY`…) plutôt que de laisser des `1`, `2`, `3` dans les
 assertions.
 
-Trois tests par route : le bon scénario, et deux refus qui comptent. Les routes encore
-en `todo()` ont leur bon scénario marqué `xfail(strict=True)` — la suite est donc verte
-aujourd'hui, et **devient rouge le jour où tu implémentes la route** : le XPASS te dit
-d'enlever le marqueur. C'est la liste de travail, écrite en tests plutôt qu'en TODO.
+Trois tests par route : le bon scénario, et deux refus qui comptent. Quand une route
+écrit, son bon scénario vérifie l'effet et pas seulement le `200` : la place a disparu,
+le compteur a bougé, la file a avancé.
+
+L'heure de fermeture des files est forcée à 24 pendant les tests (fixture `queues_open`) :
+sans ça, la suite échouerait tous les soirs après 19 h.
 
 Deux propriétés de sécurité sont testées explicitement, parce qu'elles se cassent sans
 bruit : `login` répond la même chose pour un mot de passe faux et un compte inconnu, et

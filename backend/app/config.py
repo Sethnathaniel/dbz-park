@@ -32,6 +32,8 @@ class Settings(BaseSettings):
 
     # Comma-separated. In dev the Vite proxy serves /api from the same origin.
     cors_origins: str = "http://localhost:5173"
+    # Joining a queue is refused from this hour on (the SPEC closes them at 19:00).
+    queue_closing_hour: int = 19
     debug: bool = False
 
     @property

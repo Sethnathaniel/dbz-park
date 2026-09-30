@@ -8,15 +8,15 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Attraction, AttractionVisit, QueueEntry, Ticket, TicketRole, User
+from app.models import Attraction, AttractionVisit, QueueEntry, Ticket, User
 from app.security import hash_password
 
 PASSWORD = "kamehameha"
 
 GOKU, VEGETA, ADMIN = 1, 2, 3
 TICKET_GOKU_SUPER, TICKET_GOKU_NORMAL, TICKET_FREE = 1, 2, 3
-TICKET_VEGETA, TICKET_VEGETA_SECOND, TICKET_GOKU_THIRD = 4, 5, 6
-TIME_ROOM, FREEZER_SHIP, KAIO_PALACE = 1, 2, 3
+TICKET_VEGETA, TICKET_VEGETA_SECOND, TICKET_GOKU_THIRD, TICKET_GOKU_UNUSED = 4, 5, 6, 7
+TIME_ROOM, FREEZER_SHIP, KAIO_PALACE, KARIN_TOWER = 1, 2, 3, 4
 ENTRY_GOKU_WAITING, ENTRY_VEGETA_WAITING = 1, 2
 ENTRY_GOKU_READY, ENTRY_VEGETA_EXPIRED = 3, 4
 ENTRY_READY_ON_FULL = 5
@@ -46,13 +46,15 @@ async def reset_and_seed(session: AsyncSession) -> None:
 
     session.add_all(
         [
-            Ticket(user_id=GOKU, numero="DBZ-0001", role=TicketRole.super_sayan),
-            Ticket(user_id=GOKU, numero="DBZ-0002", role=TicketRole.normal),
+            Ticket(user_id=GOKU, numero="DBZ-0001", role="super_sayan"),
+            Ticket(user_id=GOKU, numero="DBZ-0002", role="normal"),
             # Nobody holds this one: it is what `POST /tickets/assign/` claims.
-            Ticket(user_id=None, numero="DBZ-0003", role=TicketRole.sayan),
-            Ticket(user_id=VEGETA, numero="DBZ-0004", role=TicketRole.normal),
-            Ticket(user_id=VEGETA, numero="DBZ-0005", role=TicketRole.normal),
-            Ticket(user_id=GOKU, numero="DBZ-0006", role=TicketRole.normal),
+            Ticket(user_id=None, numero="DBZ-0003", role="sayan"),
+            Ticket(user_id=VEGETA, numero="DBZ-0004", role="normal"),
+            Ticket(user_id=VEGETA, numero="DBZ-0005", role="normal"),
+            Ticket(user_id=GOKU, numero="DBZ-0006", role="normal"),
+            # In no queue and no visit: the one `join` can spend.
+            Ticket(user_id=GOKU, numero="DBZ-0007", role="sayan"),
         ]
     )
     session.add_all(
@@ -61,6 +63,8 @@ async def reset_and_seed(session: AsyncSession) -> None:
             # Deliberately full: `people_inside` == `max_people`.
             Attraction(name="Le Vaisseau de Freezer", max_people=2, avg_duration=180, people_inside=2),
             Attraction(name="Le Palais de Kaio", max_people=20, avg_duration=60, people_inside=0),
+            # Nobody queues here: somewhere to join from scratch.
+            Attraction(name="La Tour de Karin", max_people=10, avg_duration=90, people_inside=0),
         ]
     )
     await session.flush()

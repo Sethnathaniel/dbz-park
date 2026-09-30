@@ -8,15 +8,13 @@ from app.models.attraction import Attraction
 from app.models.attraction_visit import AttractionVisit
 from app.models.base import Base
 from app.models.queue_entry import QueueEntry
-from app.models.ticket import ROLE_PRIORITY, Ticket, TicketRole
+from app.models.ticket import Ticket
 from app.models.user import User
 
 __all__ = [
     "Base",
     "User",
     "Ticket",
-    "TicketRole",
-    "ROLE_PRIORITY",
     "Attraction",
     "QueueEntry",
     "AttractionVisit",

@@ -2,8 +2,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import TicketRole
-
 
 class TicketOut(BaseModel):
     """A ticket as shown to its holder — no holder inside, they know it is theirs."""
@@ -12,9 +10,7 @@ class TicketOut(BaseModel):
 
     id: int
     numero: str
-    role: TicketRole
-    # Read off the model's property.
-    role_display: str
+    role: str
     created_at: datetime
 
 
@@ -38,7 +34,9 @@ class TicketAdminOut(TicketOut):
 
 
 class TicketCreateIn(BaseModel):
-    role: TicketRole
+    """The role is taken as it comes: the back lowercases it and stores it."""
+
+    role: str = Field(min_length=1, max_length=32)
 
 
 class TicketAssignIn(BaseModel):

@@ -1,51 +1,21 @@
-from datetime import datetime
-
-from pydantic import BaseModel
-
-from app.schemas.tickets import TicketOut
+from pydantic import BaseModel, ConfigDict
 
 
-class VisitOut(BaseModel):
-    """The visitor is inside the attraction right now."""
+class AttractionOut(BaseModel):
+    """An attraction, and nothing about the visitor asking."""
 
-    ticket: TicketOut
-    entered_at: datetime
-
-
-class QueueEntryOut(BaseModel):
-    """The place the visitor holds in the queue."""
-
-    id: int
-    ticket: TicketOut
-    joined_at: datetime
-    is_ready: bool
-    ready_at: datetime | None
-    max_seconds_allowing_ready: int
-    # Computed by the back, not by the front.
-    ready_expired: bool
-
-
-class AttractionCardOut(BaseModel):
-    """An attraction, plus what *this* visitor has going on there.
-
-    The four cases are exclusive, read in this order by the front:
-    `visit` → called `entry` → expired `entry` → waiting `entry` → `ticket`.
-    """
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
-    photo_url: str
+    # No column yet: the front shows its default illustration for "".
+    photo_url: str = ""
     max_people: int
     people_inside: int
-    avg_duration: str
-
-    visit: VisitOut | None = None
-    entry: QueueEntryOut | None = None
-    position: int | None = None
-    ticket: TicketOut | None = None
+    avg_duration: int
 
 
 class PositionOut(BaseModel):
-    """How many people are ahead, this place included: 1 means next in line."""
+    """Waiting places ahead, this one included: 1 = next in line, 0 = already called."""
 
     position: int

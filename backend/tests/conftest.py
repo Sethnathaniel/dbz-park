@@ -26,10 +26,6 @@ TEST_DATABASE = f"{settings.postgres_db}_test"
 TEST_URL = settings.database_url.set(database=TEST_DATABASE)
 MAINTENANCE_URL = settings.database_url.set(database="postgres")
 
-# For a route still stubbed: strict, so an XPASS fails the run and calls for its removal.
-needs_handler = pytest.mark.xfail(reason="handler not written yet: todo() answers 501", strict=True)
-
-
 async def _create_database() -> None:
     engine = create_async_engine(MAINTENANCE_URL, isolation_level="AUTOCOMMIT")
     async with engine.connect() as connection:
@@ -51,6 +47,12 @@ async def _create_database() -> None:
 def database() -> None:
     """Creates the test database and its tables, once for the whole run."""
     asyncio.run(_create_database())
+
+
+@pytest.fixture(autouse=True)
+def queues_open(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Queues close at 19:00: without this, the suite would fail every evening."""
+    monkeypatch.setattr(settings, "queue_closing_hour", 24)
 
 
 @pytest.fixture
@@ -108,4 +110,4 @@ async def count_users(session: AsyncSession) -> int:
     return await session.scalar(text("SELECT count(*) FROM \"user\"")) or 0
 
 
-__all__ = ["needs_handler", "headers_for", "count_users", "User"]
+__all__ = ["headers_for", "count_users", "User"]

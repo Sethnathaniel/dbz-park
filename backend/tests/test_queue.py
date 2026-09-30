@@ -1,27 +1,40 @@
 """Places held in a queue: position, withdrawal, validation."""
 
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import needs_handler
-from tests.seed import ENTRY_GOKU_READY, ENTRY_GOKU_WAITING, ENTRY_VEGETA_WAITING
+from app.models import AttractionVisit, QueueEntry
+from tests.seed import (
+    ENTRY_GOKU_READY,
+    ENTRY_GOKU_WAITING,
+    ENTRY_VEGETA_EXPIRED,
+    ENTRY_VEGETA_WAITING,
+    KAIO_PALACE,
+)
+
+
+async def people_inside(client: AsyncClient, headers: dict[str, str], attraction_id: int) -> int:
+    attractions = (await client.get("/attractions/", headers=headers)).json()
+    return next(a["people_inside"] for a in attractions if a["id"] == attraction_id)
 
 
 class TestPosition:
-    @needs_handler
-    async def test_counts_the_people_ahead_including_this_place(
-        self, client: AsyncClient, visitor: dict[str, str]
+    async def test_first_come_is_first_in_line(
+        self, client: AsyncClient, visitor: dict[str, str], other_visitor: dict[str, str]
     ):
-        response = await client.get(f"/queue/{ENTRY_GOKU_WAITING}/position/", headers=visitor)
-        assert response.status_code == 200
-        # goku joined the Time Room first: he is next in line.
-        assert response.json() == {"position": 1}
+        goku = await client.get(f"/queue/{ENTRY_GOKU_WAITING}/position/", headers=visitor)
+        vegeta = await client.get(f"/queue/{ENTRY_VEGETA_WAITING}/position/", headers=other_visitor)
+        assert goku.status_code == vegeta.status_code == 200
+        # goku joined the Time Room ten minutes before vegeta.
+        assert (goku.json(), vegeta.json()) == ({"position": 1}, {"position": 2})
 
-    @needs_handler
-    async def test_a_place_that_is_not_yours_is_refused(
+    async def test_a_place_that_is_not_yours_answers_like_a_missing_one(
         self, client: AsyncClient, visitor: dict[str, str]
     ):
-        response = await client.get(f"/queue/{ENTRY_VEGETA_WAITING}/position/", headers=visitor)
-        assert response.status_code == 400
+        not_mine = await client.get(f"/queue/{ENTRY_VEGETA_WAITING}/position/", headers=visitor)
+        missing = await client.get("/queue/999/position/", headers=visitor)
+        assert not_mine.status_code == missing.status_code == 400
+        assert not_mine.json()["detail"] == missing.json()["detail"]
 
     async def test_refuses_without_a_token(self, client: AsyncClient):
         response = await client.get(f"/queue/{ENTRY_GOKU_WAITING}/position/")
@@ -29,17 +42,21 @@ class TestPosition:
 
 
 class TestLeaveQueue:
-    @needs_handler
-    async def test_releases_the_place(self, client: AsyncClient, visitor: dict[str, str]):
+    async def test_releases_the_place_and_the_queue_moves_up(
+        self, client: AsyncClient, visitor: dict[str, str], other_visitor: dict[str, str]
+    ):
         response = await client.post(f"/queue/{ENTRY_GOKU_WAITING}/leave/", headers=visitor)
         assert response.status_code == 200
 
-    @needs_handler
-    async def test_refuses_a_place_that_does_not_exist(
-        self, client: AsyncClient, visitor: dict[str, str]
+        vegeta = await client.get(f"/queue/{ENTRY_VEGETA_WAITING}/position/", headers=other_visitor)
+        assert vegeta.json() == {"position": 1}
+
+    async def test_cannot_release_someone_elses_place(
+        self, client: AsyncClient, session: AsyncSession, visitor: dict[str, str]
     ):
-        response = await client.post("/queue/999/leave/", headers=visitor)
+        response = await client.post(f"/queue/{ENTRY_VEGETA_WAITING}/leave/", headers=visitor)
         assert response.status_code == 400
+        assert await session.get(QueueEntry, ENTRY_VEGETA_WAITING) is not None
 
     async def test_refuses_without_a_token(self, client: AsyncClient):
         response = await client.post(f"/queue/{ENTRY_GOKU_WAITING}/leave/")
@@ -47,18 +64,29 @@ class TestLeaveQueue:
 
 
 class TestValidateQueueEntry:
-    @needs_handler
-    async def test_lets_a_called_visitor_in(self, client: AsyncClient, visitor: dict[str, str]):
+    async def test_a_called_visitor_goes_in(
+        self, client: AsyncClient, session: AsyncSession, visitor: dict[str, str]
+    ):
         response = await client.post(f"/queue/{ENTRY_GOKU_READY}/validate/", headers=visitor)
         assert response.status_code == 200
 
-    @needs_handler
+        session.expire_all()
+        assert await session.get(QueueEntry, ENTRY_GOKU_READY) is None
+        assert await session.get(AttractionVisit, 2) is not None
+        assert await people_inside(client, visitor, KAIO_PALACE) == 1
+
     async def test_refuses_a_turn_that_has_not_come(
         self, client: AsyncClient, visitor: dict[str, str]
     ):
         response = await client.post(f"/queue/{ENTRY_GOKU_WAITING}/validate/", headers=visitor)
         assert response.status_code == 400
+        assert "pas encore" in response.json()["detail"]
 
-    async def test_refuses_without_a_token(self, client: AsyncClient):
-        response = await client.post(f"/queue/{ENTRY_GOKU_READY}/validate/")
+    async def test_refuses_a_turn_that_has_passed(
+        self, client: AsyncClient, other_visitor: dict[str, str]
+    ):
+        response = await client.post(
+            f"/queue/{ENTRY_VEGETA_EXPIRED}/validate/", headers=other_visitor
+        )
         assert response.status_code == 400
+        assert "passé" in response.json()["detail"]
