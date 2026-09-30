@@ -49,9 +49,13 @@ docker compose up -d --build
 ```
 
 L'app répond sur **http://localhost:8080** (`FRONT_PORT` dans `.env`). Le back
-applique les migrations à son démarrage, puis crée le compte `admin` / `password`
-s'il n'existe pas, 30 billets libres si la base n'en a aucun, et quatre attractions
-si elle n'en a aucune (dont une à une seule place).
+applique les migrations à son démarrage, puis crée le compte `admin` s'il n'existe
+pas (mot de passe : `ADMIN_PASSWORD`, `password` par défaut), 30 billets libres si la
+base n'en a aucun, et quatre attractions si elle n'en a aucune (dont une à une seule
+place).
+
+Pour l'héberger sur Render : [`RENDER.md`](RENDER.md), avec le Blueprint
+[`render.yaml`](render.yaml).
 
 ## Développer
 

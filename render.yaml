@@ -1,0 +1,105 @@
+# Render Blueprint: the whole park in one file. Dashboard → New → Blueprint → this repo.
+# The guide is in RENDER.md. Values marked `sync: false` are asked for at creation.
+#
+# Same split as docker-compose.yml, with Render's managed pieces in place of containers:
+#   dbz-park-front   static site on Render's CDN   (was: nginx)
+#   dbz-park-api     FastAPI, Docker               (was: backend)
+#   dbz-park-worker  Celery beat + worker, Docker  (was: worker)
+#   dbz-park-redis   Render Key Value              (was: redis)
+#   dbz-park-db      Render Postgres               (was: db)
+
+services:
+  - type: web
+    name: dbz-park-api
+    runtime: docker
+    region: frankfurt
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # The Dockerfile migrates, then serves on 8000: Render routes there.
+    healthCheckPath: /api/health/
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: POSTGRES_HOST
+        fromDatabase: { name: dbz-park-db, property: host }
+      - key: POSTGRES_PORT
+        fromDatabase: { name: dbz-park-db, property: port }
+      - key: POSTGRES_USER
+        fromDatabase: { name: dbz-park-db, property: user }
+      - key: POSTGRES_PASSWORD
+        fromDatabase: { name: dbz-park-db, property: password }
+      - key: POSTGRES_DB
+        fromDatabase: { name: dbz-park-db, property: database }
+      # Dates are stored without a zone, as the park's local time.
+      - key: TZ
+        value: Europe/Paris
+      - key: JWT_SECRET
+        generateValue: true
+      # Opens the console: choose a real one.
+      - key: ADMIN_PASSWORD
+        sync: false
+      # The front's address, e.g. https://dbz-park-front.onrender.com — known after creation.
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: worker
+    name: dbz-park-worker
+    runtime: docker
+    region: frankfurt
+    # Render has no free plan for background workers.
+    plan: starter
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: celery -A app.worker worker --beat --concurrency=1 --loglevel=info --schedule=/tmp/celerybeat-schedule
+    envVars:
+      - key: POSTGRES_HOST
+        fromDatabase: { name: dbz-park-db, property: host }
+      - key: POSTGRES_PORT
+        fromDatabase: { name: dbz-park-db, property: port }
+      - key: POSTGRES_USER
+        fromDatabase: { name: dbz-park-db, property: user }
+      - key: POSTGRES_PASSWORD
+        fromDatabase: { name: dbz-park-db, property: password }
+      - key: POSTGRES_DB
+        fromDatabase: { name: dbz-park-db, property: database }
+      - key: TZ
+        value: Europe/Paris
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: dbz-park-redis, property: connectionString }
+
+  - type: keyvalue
+    name: dbz-park-redis
+    region: frankfurt
+    plan: free
+    # Reachable only from the other services of this account.
+    ipAllowList: []
+
+  - type: web
+    name: dbz-park-front
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    # React Router owns the paths: /connexion, /console… all serve the same page.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Read at build time only: changing them needs a new deploy of the front.
+      - key: VITE_USE_MOCK
+        value: "false"
+      # The API's address, e.g. https://dbz-park-api.onrender.com/api — known after creation.
+      - key: VITE_API_URL
+        sync: false
+
+databases:
+  - name: dbz-park-db
+    region: frankfurt
+    plan: free
+    postgresMajorVersion: "17"
+    databaseName: dbz_park
+    user: dbz_park

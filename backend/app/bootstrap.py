@@ -11,13 +11,15 @@ from datetime import datetime
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.models import Attraction, Ticket, User
 from app.security import hash_password
 
 logger = logging.getLogger("app.bootstrap")
 
 DEFAULT_STAFF_USERNAME = "admin"
-DEFAULT_STAFF_PASSWORD = "password"
+# Read from ADMIN_PASSWORD: "password" only suits a park nobody else can reach.
+DEFAULT_STAFF_PASSWORD = get_settings().admin_password
 DEFAULT_STAFF_EMAIL = "admin@dbz-park.local"
 # The fares an empty park starts with. Nothing else in the back knows this list.
 STARTING_ROLES = ["super_sayan", "sayan", "normal"]

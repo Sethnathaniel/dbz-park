@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_ttl_minutes: int = 12 * 60
 
+    # Password of the `admin` account the first startup creates. Set it for any public deploy.
+    admin_password: str = "password"
+
     # Comma-separated. In dev the Vite proxy serves /api from the same origin.
     cors_origins: str = "http://localhost:5173"
     # The worker's broker, and how often it calls the next visitors.
