@@ -9,6 +9,7 @@ from tests.seed import (
     ENTRY_GOKU_WAITING,
     ENTRY_VEGETA_EXPIRED,
     ENTRY_VEGETA_WAITING,
+    FREEZER_SHIP,
     KAIO_PALACE,
 )
 
@@ -16,6 +17,31 @@ from tests.seed import (
 async def people_inside(client: AsyncClient, headers: dict[str, str], attraction_id: int) -> int:
     attractions = (await client.get("/attractions/", headers=headers)).json()
     return next(a["people_inside"] for a in attractions if a["id"] == attraction_id)
+
+
+class TestMyQueue:
+    """`GET /queue/` — the caller's places and visits, and nobody else's."""
+
+    async def test_lists_the_callers_places_and_visits_only(
+        self, client: AsyncClient, other_visitor: dict[str, str]
+    ):
+        response = await client.get("/queue/", headers=other_visitor)
+        assert response.status_code == 200
+        body = response.json()
+        # vegeta: waiting second on the Time Room, missed turn at Kaio, inside Freezer's ship.
+        assert {e["id"]: (e["position"], e["ready_expired"]) for e in body["entries"]} == {
+            ENTRY_VEGETA_WAITING: (2, False),
+            ENTRY_VEGETA_EXPIRED: (0, True),
+        }
+        assert [v["attraction_id"] for v in body["visits"]] == [FREEZER_SHIP]
+
+    async def test_refuses_without_a_token(self, client: AsyncClient):
+        response = await client.get("/queue/")
+        assert response.status_code == 400
+
+    async def test_refuses_a_forged_token(self, client: AsyncClient, forged: dict[str, str]):
+        response = await client.get("/queue/", headers=forged)
+        assert response.status_code == 400
 
 
 class TestPosition:

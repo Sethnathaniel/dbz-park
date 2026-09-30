@@ -51,9 +51,6 @@ export default function ConsolePage() {
                 {row.inside}/{row.attraction.max_people}
               </CapacityBadge>
               <CapacityBadge icon="bi-hourglass-split">{row.waiting} en attente</CapacityBadge>
-              <CapacityBadge icon="bi-stopwatch">
-                tolérance {row.attraction.max_ready_waiting} s
-              </CapacityBadge>
             </span>
           </h2>
 
@@ -75,10 +72,10 @@ export default function ConsolePage() {
                     <tr key={entry.id} className={entry.ready_expired ? 'console-expired' : ''}>
                       <td>{entry.username}</td>
                       <td>
-                        <strong>#{entry.billet.numero}</strong>
+                        <strong>#{entry.ticket.numero}</strong>
                       </td>
                       <td>
-                        <RoleBadge billet={entry.billet} withIcon={false} />
+                        <RoleBadge ticket={entry.ticket} withIcon={false} />
                       </td>
                       <td>{formatTime(entry.ready_at)}</td>
                       <td>
@@ -100,7 +97,7 @@ export default function ConsolePage() {
                           onClick={() =>
                             runAction(
                               () => acceptEntry(entry.id),
-                              `#${entry.billet.numero} est entré dans ${row.attraction.name}.`,
+                              `#${entry.ticket.numero} est entré dans ${row.attraction.name}.`,
                             )
                           }
                         >
@@ -113,7 +110,7 @@ export default function ConsolePage() {
                           onClick={() =>
                             runAction(
                               () => refuseEntry(entry.id),
-                              `La place de #${entry.billet.numero} a été retirée.`,
+                              `La place de #${entry.ticket.numero} a été retirée.`,
                             )
                           }
                         >

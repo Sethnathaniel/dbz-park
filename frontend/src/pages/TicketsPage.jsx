@@ -2,9 +2,10 @@
  * « Mes billets » : le formulaire d'assignation à gauche, la liste à droite.
  * Reprend `tickets/tickets.html`.
  */
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
-import { assignBillet, listBillets } from '../api/tickets'
+import { assignTicket, listTickets } from '../api/tickets'
+import { useAuth } from '../auth/AuthContext'
 import Alert from '../components/Alert'
 import EmptyState from '../components/EmptyState'
 import RoleBadge from '../components/RoleBadge'
@@ -12,7 +13,10 @@ import { useApi } from '../hooks/useApi'
 import { formatDateTime } from '../utils/format'
 
 export default function TicketsPage() {
-  const { data: billets, loading, error, reload } = useApi(listBillets)
+  const { user } = useAuth()
+  // Stable tant que le visiteur ne change pas : sinon `useApi` rechargerait en boucle.
+  const fetchTickets = useCallback(() => listTickets(user.id), [user.id])
+  const { data: billets, loading, error, reload } = useApi(fetchTickets)
 
   const [numero, setNumero] = useState('')
   const [feedback, setFeedback] = useState(null)
@@ -20,7 +24,7 @@ export default function TicketsPage() {
   async function handleSubmit(event) {
     event.preventDefault()
     try {
-      const billet = await assignBillet(numero)
+      const billet = await assignTicket(numero)
       setFeedback({ type: 'success', message: `Le billet #${billet.numero} est à vous.` })
       setNumero('')
       reload() // la liste doit montrer le billet qui vient d'arriver
@@ -90,10 +94,10 @@ export default function TicketsPage() {
                 <div>
                   <span className="ticket-numero">#{billet.numero}</span>
                   <span className="ticket-date">
-                    {billet.assigned_at && `Assigné le ${formatDateTime(billet.assigned_at)}`}
+                    Émis le {formatDateTime(billet.created_at)}
                   </span>
                 </div>
-                <RoleBadge billet={billet} />
+                <RoleBadge ticket={billet} />
               </div>
             ))}
 

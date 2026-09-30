@@ -6,6 +6,8 @@ and is staff-only — the single response of the API that ties a ticket to a nam
 A ticket is usable as soon as it exists: there is no payment step.
 """
 
+from datetime import datetime
+
 from fastapi import APIRouter
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import selectinload
@@ -57,6 +59,7 @@ async def create_ticket(data: TicketCreateIn, user: CurrentUser, session: Sessio
         user_id=user.id,
         numero=f"DBZ-{number:04d}",
         role=data.role.strip().lower(),
+        created_at=datetime.now(),
     )
     session.add(ticket)
     await session.commit()

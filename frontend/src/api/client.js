@@ -57,7 +57,7 @@ async function request(path, { method = 'GET', body } = {}) {
   }
 
   // Le contrat ne connaît que deux réponses : 200, et 400 avec un `detail`.
-  // Un 200 peut n'avoir aucun corps (rejoindre une file, se déconnecter) : le
+  // Un 200 peut n'avoir aucun corps (rejoindre une file, quitter une file) : le
   // `catch` le ramène alors à `null`, ce que les appelants savent lire.
   const data = await response.json().catch(() => null)
 

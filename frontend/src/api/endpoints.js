@@ -9,18 +9,19 @@
 
 export const endpoints = {
   // ── Comptes ─────────────────────────────────────────────────────────────
+  // Pas de route de déconnexion : le jeton est un JWT, le front le jette lui-même.
   signup: '/auth/signup/', //   POST  crée le compte et renvoie un jeton
   login: '/auth/login/', //     POST  échange identifiants contre jeton
-  logout: '/auth/logout/', //   POST  révoque le jeton
   me: '/auth/me/', //           GET   qui est connecté, d'après le jeton
 
   // ── Billets ─────────────────────────────────────────────────────────────
-  tickets: '/tickets/', //      GET   mes billets  ·  POST  en acheter un
-  payTicket: (ticketId) => `/tickets/${ticketId}/pay/`, //  POST  le payer
-  assignTicket: '/tickets/assign/', //                      POST  en rattacher un
+  userTickets: (userId) => `/user/${userId}/tickets/`, //  GET   les billets d'un visiteur
+  tickets: '/tickets/', //                                 POST  en acheter un
+  assignTicket: '/tickets/assign/', //                     POST  en rattacher un
 
   // ── Attractions & files ─────────────────────────────────────────────────
-  attractions: '/attractions/', // GET
+  attractions: '/attractions/', // GET   le catalogue, rien sur le visiteur
+  myQueue: '/queue/', //           GET   ses places et ses présences
   joinQueue: (attractionId) => `/attractions/${attractionId}/queue/join/`, // POST
   queuePosition: (entryId) => `/queue/${entryId}/position/`, //               GET
   leaveQueue: (entryId) => `/queue/${entryId}/leave/`, //                     POST

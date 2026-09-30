@@ -192,7 +192,7 @@ number alone.
 ### `GET /attractions/`
 The catalogue, and nothing else: every field below belongs to the attraction
 itself. What *this* visitor has going on there — a place in the queue, a
-position, a visit — is not here; it is read from the queue routes.
+position, a visit — is not here; it is read from `GET /queue/`.
 ```jsonc
 [
   {
@@ -224,6 +224,36 @@ first served. The closing hour comes from `QUEUE_CLOSING_HOUR` (19 by default).
 | ---- | ---- |
 | `200 OK` | the place is taken. |
 | `400 Bad Request` | not logged in; unknown attraction; the visitor already holds a place or is already inside here (one ticket, one place per attraction); no usable ticket (none owned, or all already engaged elsewhere); or the queue is closed (after 19:00). |
+
+### `GET /queue/`
+Everything the caller has going on: the places they hold, where each one stands,
+and the attractions they are inside. The front reads it next to
+`GET /attractions/` and matches the two on `attraction_id`.
+```jsonc
+{
+  "entries": [
+    {
+      "id": 7,
+      "attraction_id": 1,
+      "ticket": { "id": 1, "numero": "DBZ-0001", "role": "super_sayan", "created_at": "…" },
+      "joined_at": "2026-09-17T13:40:00",
+      "is_ready": false,
+      "ready_at": null,
+      "max_seconds_allowing_ready": 300,
+      "ready_expired": false,   // computed by the back, not by the front
+      "position": 3             // same meaning as the route below: 0 once called
+    }
+  ],
+  "visits": [
+    { "attraction_id": 2, "ticket": { … }, "entered_at": "2026-09-17T14:02:00" }
+  ]
+}
+```
+
+| Code | When |
+| ---- | ---- |
+| `200 OK` | the caller's places and visits, both `[]` when there are none. |
+| `400 Bad Request` | not logged in. There is no `<user_id>` to guess: the route only ever reads the caller. |
 
 ### `GET /queue/<entry_id>/position/`
 How many *waiting* places joined before this one, this place included: `1`

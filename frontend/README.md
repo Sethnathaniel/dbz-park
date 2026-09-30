@@ -4,11 +4,20 @@ Le front du parc, en React. Il reprend les mêmes écrans et le même style que 
 gabarits Django, mais il est un projet à part : il se lance, se construit et se
 déploie sans le back.
 
-Tant que l'API n'existe pas, il tourne sur des **fausses données**
-(`src/api/mock.js`). Le jour où le back répond, on passe `VITE_USE_MOCK` à
-`false` et tout est branché.
+Il parle à l'API FastAPI de `../backend`, selon le contrat décrit dans
+[`../API.md`](../API.md). Il n'y a plus de maquette : sans le back, les pages
+affichent « Le serveur ne répond pas. ».
 
 ## Lancement
+
+Le back d'abord, depuis la racine du projet (voir `../backend/README.md`) :
+
+```bash
+docker compose up -d
+cd backend && uv run alembic upgrade head && uv run fastapi dev app/main.py
+```
+
+Puis le front, dans un autre terminal :
 
 ```bash
 cd frontend
@@ -17,16 +26,10 @@ cp .env.example .env
 npm run dev          # http://localhost:5173
 ```
 
-Deux comptes existent dans la maquette :
-
-| Compte  | Mot de passe  | Ce qu'il voit             |
-| ------- | ------------- | ------------------------- |
-| `goku`  | `kamehameha`  | billets, attractions      |
-| `admin` | `admin`       | + la console              |
-
-> Les deux illustrations viennent du back : copier `static/dbz-park-icon.svg` et
-> `static/attraction-default.svg` dans `frontend/public/`. Sans elles les pages
-> marchent, il manque juste le logo et la photo par défaut.
+Au premier démarrage, le back crée un compte `admin` / `admin` (qui voit la
+console) et 30 billets libres, `DBZ-0001` à `DBZ-0030`. Pour un visiteur : créer
+un compte depuis `/inscription`, puis rattacher un de ces billets depuis
+« Mes billets ».
 
 ## Ce qu'il y a dans quel dossier
 
@@ -35,7 +38,6 @@ src/
 ├── api/          ← tout ce qui parle au back. Le reste du front ne connaît pas fetch.
 │   ├── endpoints.js  LA liste des URL. Un seul fichier à corriger si le back renomme.
 │   ├── client.js     fetch + jeton + erreurs. Le seul endroit qui touche au réseau.
-│   ├── mock.js       le faux back, tant que le vrai n'existe pas.
 │   └── auth.js · tickets.js · attractions.js · console.js   un fichier par domaine.
 ├── auth/         qui est connecté (AuthContext) et les pages fermées (RequireAuth).
 ├── components/   les morceaux réutilisés : en-tête, carte, pastilles, bandeau.
@@ -78,18 +80,19 @@ Utile pour expliquer le passage d'un monde à l'autre :
 | `{% csrf_token %}`                  | plus rien : jeton `Bearer`, pas de cookie     |
 | une vue qui `redirect()` après POST | `runAction()` : appeler, afficher, `reload()` |
 
-## Brancher le vrai back
-
-1. Le back expose les routes décrites dans **`API.md`**.
-2. Dans `.env` : `VITE_USE_MOCK=false`.
-3. Si les adresses diffèrent, les corriger dans `src/api/endpoints.js` — et
-   nulle part ailleurs.
+## Comment le front parle au back
 
 En développement, `vite.config.js` renvoie `/api` vers `http://localhost:8000` :
 pour le navigateur tout vient de la même origine, donc **aucun CORS à régler**.
 
-Une fois branché, `src/api/mock.js` peut être supprimé, ainsi que les `USE_MOCK ?`
-dans les quatre fichiers de domaine.
+Si une adresse change côté back, on la corrige dans `src/api/endpoints.js`, et
+nulle part ailleurs.
+
+Un seul endroit recolle deux réponses du back : `listAttractionCards()`, dans
+`src/api/attractions.js`. Le catalogue (`GET /attractions/`) ne dit rien du
+visiteur, et ce que le visiteur a en cours (`GET /queue/`) ne dit rien des
+attractions ; la fonction assemble les deux pour que `AttractionCard` reçoive une
+carte complète.
 
 ## Construire pour la production
 

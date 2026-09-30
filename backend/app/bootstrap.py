@@ -5,6 +5,7 @@ never argue with data created later. Empty park, usable park — that is the who
 """
 
 import logging
+from datetime import datetime
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,8 +62,9 @@ async def ensure_tickets(session: AsyncSession) -> list[Ticket]:
     if await session.scalar(select(func.count()).select_from(Ticket)):
         return []
 
+    now = datetime.now()
     tickets = [
-        Ticket(user_id=None, numero=f"DBZ-{number:04d}", role=role)
+        Ticket(user_id=None, numero=f"DBZ-{number:04d}", role=role, created_at=now)
         for number, role in enumerate(
             (role for role in STARTING_ROLES for _ in range(TICKETS_PER_ROLE)), start=1
         )

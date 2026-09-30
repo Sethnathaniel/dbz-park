@@ -4,14 +4,14 @@
  */
 import { useState } from 'react'
 
-import { joinQueue, leaveQueue, listAttractions, validateQueue } from '../api/attractions'
+import { joinQueue, leaveQueue, listAttractionCards, validateQueue } from '../api/attractions'
 import Alert from '../components/Alert'
 import AttractionCard from '../components/AttractionCard'
 import EmptyState from '../components/EmptyState'
 import { useApi } from '../hooks/useApi'
 
 export default function AttractionsPage() {
-  const { data: cards, loading, error, reload } = useApi(listAttractions)
+  const { data: cards, loading, error, reload } = useApi(listAttractionCards)
   const [feedback, setFeedback] = useState(null)
 
   /**

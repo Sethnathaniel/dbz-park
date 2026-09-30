@@ -1,12 +1,13 @@
 /**
  * La carte d'une attraction : sa photo, ses deux faits, puis le panneau du bas.
  *
- * Ce panneau porte l'un des quatre cas, dans le même ordre que le gabarit
+ * Ce panneau porte l'un des cinq cas, dans le même ordre que le gabarit
  * Django : le visiteur est à l'intérieur, il est appelé, son tour est passé,
- * il attend — ou bien il peut rejoindre la file.
+ * il attend — ou bien il peut rejoindre la file. `entry` et `visit` viennent
+ * de `GET /queue/`, recollés à l'attraction par `listAttractionCards`.
  */
 import CapacityBadge from './CapacityBadge'
-import { formatTime } from '../utils/format'
+import { formatDuration, formatTime } from '../utils/format'
 
 // La photo par défaut, quand l'attraction n'a pas encore la sienne.
 const DEFAULT_PHOTO = '/attraction-default.svg'
@@ -22,7 +23,7 @@ function LeaveButton({ onLeave }) {
 }
 
 export default function AttractionCard({ card, onJoin, onLeave, onValidate }) {
-  const { visit, entry, billet } = card
+  const { visit, entry } = card
 
   return (
     <div className="attraction-card">
@@ -39,7 +40,7 @@ export default function AttractionCard({ card, onJoin, onLeave, onValidate }) {
           <CapacityBadge icon="bi-people-fill">
             {card.people_inside}/{card.max_people}
           </CapacityBadge>
-          <CapacityBadge icon="bi-stopwatch">{card.duration_range}</CapacityBadge>
+          <CapacityBadge icon="bi-stopwatch">{formatDuration(card.avg_duration)}</CapacityBadge>
         </div>
 
         {/* 1. Le visiteur est dans l'attraction. */}
@@ -47,7 +48,7 @@ export default function AttractionCard({ card, onJoin, onLeave, onValidate }) {
           <div className="queue-panel queue-inside">
             <p className="queue-line">
               <i className="bi bi-person-check-fill" />
-              Vous êtes à l'intérieur avec le billet <strong>#{visit.billet.numero}</strong>, depuis{' '}
+              Vous êtes à l'intérieur avec le billet <strong>#{visit.ticket.numero}</strong>, depuis{' '}
               {formatTime(visit.entered_at)}.
             </p>
           </div>
@@ -58,7 +59,7 @@ export default function AttractionCard({ card, onJoin, onLeave, onValidate }) {
           <div className="queue-panel queue-ready">
             <p className="queue-line">
               <i className="bi bi-bell-fill" />
-              C'est à vous — billet <strong>#{entry.billet.numero}</strong>, appelé à{' '}
+              C'est à vous — billet <strong>#{entry.ticket.numero}</strong>, appelé à{' '}
               {formatTime(entry.ready_at)}.
             </p>
             <button type="button" className="btn btn-park btn-sm w-100" onClick={onValidate}>
@@ -74,7 +75,7 @@ export default function AttractionCard({ card, onJoin, onLeave, onValidate }) {
           <div className="queue-panel queue-expired">
             <p className="queue-line">
               <i className="bi bi-hourglass-bottom" />
-              Votre tour est passé : la place du billet <strong>#{entry.billet.numero}</strong>{' '}
+              Votre tour est passé : la place du billet <strong>#{entry.ticket.numero}</strong>{' '}
               revient à la file.
             </p>
             <LeaveButton onLeave={onLeave} />
@@ -86,32 +87,22 @@ export default function AttractionCard({ card, onJoin, onLeave, onValidate }) {
           <div className="queue-panel queue-waiting">
             <p className="queue-line">
               <i className="bi bi-hourglass-split" />
-              Billet <strong>#{entry.billet.numero}</strong> dans la file depuis{' '}
-              {formatTime(entry.joined_at)} — {card.rank}
+              Billet <strong>#{entry.ticket.numero}</strong> dans la file depuis{' '}
+              {formatTime(entry.joined_at)} — {entry.position}
               <sup>e</sup> position.
             </p>
             <LeaveButton onLeave={onLeave} />
           </div>
         )}
 
-        {/* 5. Rien en cours : il peut rejoindre, s'il lui reste un billet. */}
-        {!visit && !entry && billet && (
+        {/* 5. Rien en cours : il peut rejoindre. Sans billet libre, le back le dira. */}
+        {!visit && !entry && (
           <div className="queue-join">
             <button type="button" className="btn btn-park btn-sm w-100" onClick={onJoin}>
               <i className="bi bi-hourglass-split" />
               Rejoindre la file
             </button>
-            <p className="queue-note">
-              Avec le billet #{billet.numero} ({billet.role_display}).
-            </p>
           </div>
-        )}
-
-        {!visit && !entry && !billet && (
-          <p className="queue-note">
-            <i className="bi bi-info-circle" />
-            Aucun billet disponible pour cette file.
-          </p>
         )}
       </div>
     </div>
