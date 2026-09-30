@@ -1,4 +1,6 @@
-"""What startup guarantees: a park that is never left without staff or tickets."""
+"""What startup guarantees: a park never left without its admin, tickets or attractions."""
+
+from datetime import datetime
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,11 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bootstrap import (
     DEFAULT_STAFF_PASSWORD,
     DEFAULT_STAFF_USERNAME,
+    STARTING_ATTRACTIONS,
     STARTING_ROLES,
     TICKETS_PER_ROLE,
     bootstrap,
 )
-from app.models import Ticket, User
+from app.calling import tick
+from app.models import Attraction, QueueEntry, Ticket, User
 from app.security import verify_password
 from tests.seed import TABLES
 
@@ -83,3 +87,48 @@ class TestTickets:
         before = await session.scalar(select(func.count()).select_from(Ticket))
         await bootstrap(session)
         assert await session.scalar(select(func.count()).select_from(Ticket)) == before
+
+
+class TestAttractions:
+    async def test_creates_the_four_starting_attractions_in_an_empty_park(
+        self, session: AsyncSession
+    ):
+        await empty(session)
+        await bootstrap(session)
+
+        attractions = (await session.scalars(select(Attraction).order_by(Attraction.id))).all()
+        assert [(a.name, a.max_people, a.avg_duration) for a in attractions] == STARTING_ATTRACTIONS
+        assert all(a.people_inside == 0 for a in attractions)
+
+    async def test_does_nothing_when_the_park_already_has_attractions(
+        self, session: AsyncSession
+    ):
+        # The seed has its own four, and the Time Room holds 12 people: nothing may change.
+        before = await session.scalar(select(func.count()).select_from(Attraction))
+        await bootstrap(session)
+
+        session.expire_all()
+        assert await session.scalar(select(func.count()).select_from(Attraction)) == before
+        time_room = await session.scalar(
+            select(Attraction).where(Attraction.name == "La Salle du Temps")
+        )
+        assert time_room.people_inside == 12
+
+    async def test_the_single_seat_attraction_calls_one_visitor_at_a_time(
+        self, session: AsyncSession
+    ):
+        await empty(session)
+        await bootstrap(session)
+        karin = await session.scalar(select(Attraction).where(Attraction.max_people == 1))
+        first, second = (await session.scalars(select(Ticket).order_by(Ticket.id).limit(2))).all()
+        now = datetime.now()
+        session.add_all(
+            [
+                QueueEntry(attraction_id=karin.id, ticket_id=first.id, joined_at=now),
+                QueueEntry(attraction_id=karin.id, ticket_id=second.id, joined_at=now),
+            ]
+        )
+        await session.commit()
+
+        _, called = await tick(session)
+        assert called == 1

@@ -50,7 +50,8 @@ docker compose up -d --build
 
 L'app répond sur **http://localhost:8080** (`FRONT_PORT` dans `.env`). Le back
 applique les migrations à son démarrage, puis crée le compte `admin` / `password`
-s'il n'existe pas, et 30 billets libres si la base n'en a aucun.
+s'il n'existe pas, 30 billets libres si la base n'en a aucun, et quatre attractions
+si elle n'en a aucune (dont une à une seule place).
 
 ## Développer
 
@@ -129,9 +130,10 @@ Le cahier des charges complet est dans [`SPEC.md`](SPEC.md), les routes dans
 | Déploiement | Base, back, worker, Redis et front conteneurisés (`docker compose up -d --build`). |
 
 Deux routes manquent pour que l'app tienne seule : créer une attraction, et
-enregistrer une sortie. En attendant la seconde, une tâche **temporaire** du worker
-fait sortir tout visiteur entré depuis 30 s (`backend/app/temporary_exits.py`).
+enregistrer une sortie. En attendant, le démarrage crée quatre attractions dans un
+parc qui n'en a aucune, et une tâche **temporaire** du worker fait sortir tout
+visiteur entré depuis 30 s (`backend/app/temporary_exits.py`).
 
-Il n'y a plus de panneau `/admin/` comme dans l'ancienne version Django : les
-données de départ (attractions, billets libres) s'écrivent pour l'instant
-directement en base.
+Il n'y a plus de panneau `/admin/` comme dans l'ancienne version Django : au-delà
+des données de départ que crée le démarrage (admin, billets, attractions), le reste
+s'écrit pour l'instant directement en base.

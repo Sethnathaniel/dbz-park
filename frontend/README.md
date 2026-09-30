@@ -27,7 +27,7 @@ npm run dev          # http://localhost:5173
 ```
 
 Au premier démarrage, le back crée un compte `admin` / `password` (qui voit la
-console) et 30 billets libres, `DBZ-0001` à `DBZ-0030`. Pour un visiteur : créer
+console), 30 billets libres, `DBZ-0001` à `DBZ-0030`, et quatre attractions. Pour un visiteur : créer
 un compte depuis `/inscription`, puis acheter un billet ou rattacher un de ceux-là
 depuis « Mes billets ».
 

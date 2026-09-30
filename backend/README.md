@@ -28,12 +28,15 @@ via le proxy de Vite : pas de CORS à régler en développement.
 
 ## Au démarrage
 
-Avant la première requête, l'API vérifie deux choses et les répare si besoin
+Avant la première requête, l'API vérifie trois choses et les répare si besoin
 (`app/bootstrap.py`, appelé par le `lifespan`) :
 
 - **pas de compte `admin`** → elle le crée, staff, avec le mot de passe `password`. Il est
   en dur : c'est un confort de développement, à changer avant de sortir d'ici.
 - **aucun billet** → elle en crée 30, dix par rôle, non assignés (`DBZ-0001` à `DBZ-0030`).
+- **aucune attraction** → elle crée les quatre de départ : la Salle du Temps (50 places),
+  le Vaisseau de Freezer (2), le Palais de Kaio (20) et la Tour de Karin, qui n'a qu'**une
+  seule place** — de quoi voir la file et la priorité à l'œuvre un visiteur à la fois.
 
 La vérification porte sur le **nom** `admin`, pas sur l'existence d'un staff quelconque :
 un autre compte staff n'empêche pas sa création. À l'inverse, un `admin` qui existe déjà
@@ -41,7 +44,7 @@ n'est jamais retouché — son mot de passe survit aux redémarrages, même s'il
 `password`. Si ce nom a été pris par un visiteur, l'API **ne le promeut pas** (cela
 donnerait la console au premier qui a réservé le nom) : elle le signale dans les logs.
 
-Les billets, eux, sont tout ou rien : l'API regarde si la table contient *quelque chose*,
+Les billets et les attractions, eux, sont tout ou rien : l'API regarde si la table contient *quelque chose*,
 donc elle ne discute jamais avec des billets créés ensuite. Le tout sous un verrou
 consultatif Postgres, pour que plusieurs workers lancés en même temps ne créent pas les
 mêmes lignes deux fois.
