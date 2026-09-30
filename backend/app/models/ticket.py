@@ -6,7 +6,7 @@ exists, which is why no column here mentions money.
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -29,6 +29,10 @@ class Ticket(Base):
     # Free text, lowercased on the way in, and always given: the column invents nothing.
     role: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    # The staff can switch a ticket off by hand (fraud, refund…): an invalid ticket keeps
+    # its holder but can no longer join a queue or be claimed.
+    is_valid: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
     user: Mapped["User | None"] = relationship(back_populates="tickets")
     queue_entries: Mapped[list["QueueEntry"]] = relationship(

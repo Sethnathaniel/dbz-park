@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.db import SessionDep
 from app.dependencies import CurrentUser
-from app.errors import ApiError
+from app.errors import USERNAME_TAKEN, ApiError
 from app.models import User
 from app.schemas.auth import AuthOut, LoginIn, SignupIn, UserOut
 from app.security import create_token, hash_password, verify_password
@@ -24,7 +24,7 @@ async def signup(data: SignupIn, session: SessionDep) -> AuthOut:
 
     taken = await session.scalar(select(User).where(User.username == data.username))
     if taken is not None:
-        raise ApiError("Ce nom d'utilisateur est déjà pris.")
+        raise ApiError(USERNAME_TAKEN)
 
     user = User(
         username=data.username,

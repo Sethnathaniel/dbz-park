@@ -90,12 +90,16 @@ async def assign_ticket(data: TicketAssignIn, user: CurrentUser, session: Sessio
     # One statement: two visitors claiming the same number at once, only one wins.
     claimed = await session.scalar(
         update(Ticket)
-        .where(Ticket.numero == data.numero, Ticket.user_id.is_(None))
+        .where(
+            Ticket.numero == data.numero,
+            Ticket.user_id.is_(None),
+            Ticket.is_valid.is_(True),
+        )
         .values(user_id=user.id)
         .returning(Ticket)
     )
     if claimed is None:
-        # Unknown number and already-taken number end here together, on purpose.
+        # Unknown, already taken or invalidated: all three end here together, on purpose.
         raise ApiError(UNKNOWN_TICKET)
 
     await session.commit()

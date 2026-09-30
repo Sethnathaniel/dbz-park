@@ -17,7 +17,7 @@ from starlette.requests import Request
 from app.bootstrap import bootstrap
 from app.config import get_settings
 from app.db import SessionFactory
-from app.routers import attractions, auth, console, queue, tickets
+from app.routers import accounts, attractions, auth, console, queue, tickets
 
 settings = get_settings()
 
@@ -78,5 +78,6 @@ for router in (
     attractions.router,
     queue.router,
     console.router,
+    accounts.router,
 ):
     app.include_router(router, prefix=API_PREFIX)

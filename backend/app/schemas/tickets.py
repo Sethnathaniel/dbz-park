@@ -12,6 +12,7 @@ class TicketOut(BaseModel):
     numero: str
     role: str
     created_at: datetime
+    is_valid: bool
 
 
 class TicketHolderOut(BaseModel):

@@ -24,7 +24,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(128))
     is_staff: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
-    tickets: Mapped[list["Ticket"]] = relationship(back_populates="user")
+    tickets: Mapped[list["Ticket"]] = relationship(back_populates="user", order_by="Ticket.id")
 
     def __repr__(self) -> str:
         return f"<User {self.username}>"

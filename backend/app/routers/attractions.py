@@ -51,6 +51,7 @@ async def join_queue(attraction_id: int, user: CurrentUser, session: SessionDep)
         select(Ticket.id)
         .where(
             Ticket.user_id == user.id,
+            Ticket.is_valid.is_(True),
             Ticket.id.not_in(select(QueueEntry.ticket_id)),
             Ticket.id.not_in(select(AttractionVisit.ticket_id)),
         )
