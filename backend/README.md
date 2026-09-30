@@ -9,7 +9,7 @@ un `400` un corps `{"detail": "…"}` que le front affiche tel quel.
 Copier `../.env.example` en `../.env`, puis, depuis la racine :
 
 ```bash
-docker compose up -d        # la base, et rien d'autre pour l'instant
+docker compose up -d db     # la base seule : le back, on le lance à la main
 ```
 
 ```bash
