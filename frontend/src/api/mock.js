@@ -23,8 +23,8 @@ const ROLE_PRIORITY = ['super_sayan', 'sayan', 'normal']
 const db = {
   // Deux comptes pour essayer : un visiteur et un admin.
   users: [
-    { id: 1, username: 'goku', password: 'kamehameha', is_staff: false },
-    { id: 2, username: 'admin', password: 'admin', is_staff: true },
+    { id: 1, username: 'goku', email: 'goku@dbz.fr', password: 'kamehameha', is_staff: false },
+    { id: 2, username: 'admin', email: 'admin@dbz.fr', password: 'admin', is_staff: true },
   ],
   tickets: [
     { id: 1, user_id: 1, numero: 'DBZ-0001', role: 'super_sayan', created_at: '2026-09-17T09:12:00' },
@@ -65,6 +65,12 @@ function requireUser() {
   return currentUser
 }
 
+function requireStaff() {
+  const user = requireUser()
+  if (!user.is_staff) fail('Connectez-vous pour continuer.')
+  return user
+}
+
 function publicUser(user) {
   return { id: user.id, username: user.username, is_staff: user.is_staff }
 }
@@ -76,6 +82,8 @@ function publicTicket(ticket) {
     numero: ticket.numero,
     role: ticket.role,
     created_at: ticket.created_at,
+    // Un billet est valide tant que le staff ne l'a pas invalidé à la main.
+    is_valid: ticket.is_valid !== false,
   }
 }
 
@@ -119,7 +127,7 @@ function bestTicket(attractionId) {
     ...db.visits.map((v) => v.ticket_id),
   ])
   const mine = db.tickets.filter(
-    (t) => t.user_id === currentUser?.id && !engaged.has(t.id),
+    (t) => t.user_id === currentUser?.id && t.is_valid !== false && !engaged.has(t.id),
   )
   mine.sort((a, b) => ROLE_PRIORITY.indexOf(a.role) - ROLE_PRIORITY.indexOf(b.role))
   return mine[0] ?? null
@@ -230,7 +238,9 @@ export const mock = {
     const ticket = db.tickets.find((t) => t.numero === numero)
     // Un numéro inconnu et un numéro déjà pris donnent la même réponse : on ne
     // dit pas à qui appartient un billet.
-    if (!ticket || ticket.user_id !== null) fail('Ce numéro de billet est introuvable.')
+    if (!ticket || ticket.user_id !== null || ticket.is_valid === false) {
+      fail('Ce numéro de billet est introuvable.')
+    }
     ticket.user_id = currentUser.id
     return publicTicket(ticket)
   },
@@ -409,6 +419,64 @@ export const mock = {
     if (!user.is_staff) fail('Connectez-vous pour continuer.')
     db.entries = db.entries.filter((e) => e.id !== entryId)
     return null
+  },
+
+  // Comptes (staff)
+  /** Les comptes dont le nom ou l'e-mail contient `search`, par ordre alphabétique. */
+  async searchAccounts(search) {
+    await wait()
+    requireStaff()
+    const needle = search.trim().toLowerCase()
+    return db.users
+      .filter((u) => `${u.username} ${u.email ?? ''}`.toLowerCase().includes(needle))
+      .sort((a, b) => a.username.localeCompare(b.username))
+      .map((u) => ({
+        id: u.id,
+        username: u.username,
+        email: u.email ?? '',
+        is_staff: u.is_staff,
+        tickets: db.tickets.filter((t) => t.user_id === u.id).map(publicTicket),
+      }))
+  },
+
+  async updateAccount(userId, { username, email, is_staff }) {
+    await wait()
+    const staff = requireStaff()
+    const account = db.users.find((u) => u.id === userId)
+    if (!account) fail('Ce compte est introuvable.')
+    if (account.id === staff.id && !is_staff) {
+      fail("Vous ne pouvez pas retirer vos propres droits d'admin.")
+    }
+    if (db.users.some((u) => u.username === username && u.id !== userId)) {
+      fail("Ce nom d'utilisateur est déjà pris.")
+    }
+    Object.assign(account, { username, email, is_staff })
+    return null
+  },
+
+  async deleteAccount(userId) {
+    await wait()
+    const staff = requireStaff()
+    if (userId === staff.id) fail('Vous ne pouvez pas supprimer votre propre compte.')
+    if (!db.users.some((u) => u.id === userId)) fail('Ce compte est introuvable.')
+    const theirs = new Set(db.tickets.filter((t) => t.user_id === userId).map((t) => t.id))
+    db.entries = db.entries.filter((e) => !theirs.has(e.ticket_id))
+    // Ses billets restent dans le parc, sans détenteur.
+    for (const ticket of db.tickets) {
+      if (theirs.has(ticket.id)) ticket.user_id = null
+    }
+    db.users = db.users.filter((u) => u.id !== userId)
+    return null
+  },
+
+  async setTicketValidity(ticketId, isValid) {
+    await wait()
+    requireStaff()
+    const ticket = ticketOf(ticketId)
+    if (!ticket) fail('Ce billet est introuvable.')
+    ticket.is_valid = isValid
+    if (!isValid) db.entries = db.entries.filter((e) => e.ticket_id !== ticketId)
+    return publicTicket(ticket)
   },
 
   // Incident : la file se fige. Les appelés repassent en attente sans perdre leur rang.

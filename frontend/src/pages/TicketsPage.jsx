@@ -7,6 +7,7 @@
 import { useCallback, useState } from 'react'
 
 import { useAuth } from '../auth/AuthContext'
+import { toggleTicketValidity } from '../api/accounts'
 import {
   assignTicket,
   buyTicket,
@@ -17,6 +18,7 @@ import {
 import Alert from '../components/Alert'
 import EmptyState from '../components/EmptyState'
 import RoleBadge from '../components/RoleBadge'
+import { InvalidTag, ValidityButton } from '../components/TicketValidity'
 import { useApi } from '../hooks/useApi'
 import { formatDateTime } from '../utils/format'
 import { ROLES } from '../utils/roles'
@@ -151,11 +153,17 @@ export default function TicketsPage() {
             {error && <Alert message={error} type="error" />}
 
             {tickets?.map((ticket) => (
-              <div key={ticket.id} className={`ticket-card ticket-${ticket.role}`}>
+              <div
+                key={ticket.id}
+                className={`ticket-card ticket-${ticket.role} ${ticket.is_valid ? '' : 'ticket-invalid'}`}
+              >
                 <div>
                   <span className="ticket-numero">#{ticket.numero}</span>
+                  <InvalidTag ticket={ticket} />
                   <span className="ticket-date">
-                    {ticket.created_at && `Acheté le ${formatDateTime(ticket.created_at)}`}
+                    {ticket.is_valid
+                      ? ticket.created_at && `Acheté le ${formatDateTime(ticket.created_at)}`
+                      : "Invalidé par l'équipe du parc : il ne peut plus entrer dans une file."}
                   </span>
                 </div>
 
@@ -190,6 +198,17 @@ function StaffSection() {
   const [busy, setBusy] = useState(false)
   const [created, setCreated] = useState(null)
   const [createError, setCreateError] = useState(null)
+  const [validityError, setValidityError] = useState(null)
+
+  async function handleToggle(ticket) {
+    setValidityError(null)
+    try {
+      await toggleTicketValidity(ticket)
+      await reload()
+    } catch (err) {
+      setValidityError(err.message)
+    }
+  }
 
   async function handleCreate(event) {
     event.preventDefault()
@@ -277,15 +296,22 @@ function StaffSection() {
         {loading && !tickets && <EmptyState icon="bi-hourglass-split">Chargement…</EmptyState>}
         {error && <Alert message={error} type="error" />}
 
+        {validityError && <Alert message={validityError} type="error" />}
+
         {tickets?.map((ticket) => (
-          <div key={ticket.id} className={`ticket-card ticket-${ticket.role}`}>
+          <div
+            key={ticket.id}
+            className={`ticket-card ticket-${ticket.role} ${ticket.is_valid ? '' : 'ticket-invalid'}`}
+          >
             <div>
               <span className="ticket-numero">#{ticket.numero}</span>
+              <InvalidTag ticket={ticket} />
               <span className="ticket-date">{ticket.user?.username ?? 'non attribué'}</span>
             </div>
 
             <div className="ticket-side">
               <RoleBadge ticket={ticket} />
+              <ValidityButton ticket={ticket} onToggle={() => handleToggle(ticket)} />
             </div>
           </div>
         ))}

@@ -10,6 +10,7 @@ import { Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import EmptyState from './components/EmptyState'
 import RequireAuth from './auth/RequireAuth'
+import AccountsPage from './pages/AccountsPage'
 import AttractionsPage from './pages/AttractionsPage'
 import ConsolePage from './pages/ConsolePage'
 import LoginPage from './pages/LoginPage'
@@ -48,6 +49,14 @@ export default function App() {
           element={
             <RequireAuth staffOnly>
               <ConsolePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/comptes"
+          element={
+            <RequireAuth staffOnly>
+              <AccountsPage />
             </RequireAuth>
           }
         />

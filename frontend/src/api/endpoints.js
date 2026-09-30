@@ -33,4 +33,11 @@ export const endpoints = {
   refuseEntry: (entryId) => `/console/entries/${entryId}/refuse/`, // POST
   declareIncident: (attractionId) => `/console/attractions/${attractionId}/incident/`, // POST
   resumeAttraction: (attractionId) => `/console/attractions/${attractionId}/resume/`, //  POST
+
+  // ── Comptes (staff) ─────────────────────────────────────────────────────
+  accounts: (search) => `/console/users/?search=${encodeURIComponent(search)}`, // GET
+  updateAccount: (userId) => `/console/users/${userId}/`, //                    POST
+  deleteAccount: (userId) => `/console/users/${userId}/delete/`, //             POST
+  revokeTicket: (ticketId) => `/console/tickets/${ticketId}/revoke/`, //        POST
+  restoreTicket: (ticketId) => `/console/tickets/${ticketId}/restore/`, //      POST
 }

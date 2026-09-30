@@ -48,10 +48,16 @@ export default function Header() {
                 Attractions
               </NavLink>
               {user.is_staff && (
-                <NavLink to="/console" className={navClass}>
-                  <i className="bi bi-sliders" />
-                  Console
-                </NavLink>
+                <>
+                  <NavLink to="/console" className={navClass}>
+                    <i className="bi bi-sliders" />
+                    Console
+                  </NavLink>
+                  <NavLink to="/comptes" className={navClass}>
+                    <i className="bi bi-people" />
+                    Comptes
+                  </NavLink>
+                </>
               )}
 
               <div className="dropdown">
@@ -93,6 +99,18 @@ export default function Header() {
                         >
                           <i className="bi bi-sliders" />
                           Console
+                        </Link>
+                      </li>
+                    )}
+                    {user.is_staff && (
+                      <li>
+                        <Link
+                          className="dropdown-item"
+                          to="/comptes"
+                          onClick={() => setMenuOpen(false)}
+                        >
+                          <i className="bi bi-people" />
+                          Comptes
                         </Link>
                       </li>
                     )}

@@ -323,6 +323,19 @@ main {
   color: var(--gray-400);
 }
 
+/* Un billet invalidé par le staff : grisé, et dit comme tel. */
+.ticket-invalid { background-color: var(--gray-50); }
+.ticket-invalid .ticket-numero { color: var(--gray-400); text-decoration: line-through; }
+
+.invalid-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  font-size: .74rem;
+  color: #B91C1C;
+}
+
 /* Ce qu'un billet porte à droite : son rôle. */
 .ticket-side {
   display: flex;
@@ -512,6 +525,25 @@ main {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+/* ── Comptes ──────────────────────────────────────────────── */
+.search-form {
+  display: flex;
+  gap: 8px;
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.account-email {
+  margin: -6px 0 14px;
+  font-size: .86rem;
+  color: var(--gray-500);
 }
 
 /* ── Empty state ──────────────────────────────────────────── */
